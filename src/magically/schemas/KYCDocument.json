@@ -1,0 +1,55 @@
+{
+  "name": "KYCDocument",
+  "collection": "kyc_documents",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "documentType": {
+        "type": "string",
+        "required": true,
+        "enum": [
+          "national_id",
+          "passport",
+          "drivers_license",
+          "proof_of_address"
+        ],
+        "description": "Type of KYC document"
+      },
+      "documentUrl": {
+        "type": "string",
+        "required": true,
+        "description": "URL to stored document file"
+      },
+      "verificationStatus": {
+        "type": "string",
+        "required": true,
+        "enum": [
+          "pending",
+          "verified",
+          "rejected"
+        ],
+        "default": "pending",
+        "description": "Verification status of document"
+      },
+      "uploadedDate": {
+        "type": "string",
+        "required": true,
+        "description": "Date when document was uploaded"
+      },
+      "verifiedDate": {
+        "type": "string",
+        "description": "Date when document was verified"
+      },
+      "rejectionReason": {
+        "type": "string",
+        "description": "Reason for rejection if applicable"
+      }
+    },
+    "required": [
+      "documentType",
+      "documentUrl",
+      "verificationStatus",
+      "uploadedDate"
+    ]
+  }
+}

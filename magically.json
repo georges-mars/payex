@@ -1,0 +1,367 @@
+{
+  "version": "1.0.0",
+  "projectId": "90baa289-0ae1-421e-b59c-4e9e60105c6e",
+  "projectName": "Payvex",
+  "fileManifest": [
+    {
+      "path": "App.tsx",
+      "language": "typescript",
+      "hash": "a2900726732a947f16237cfbf5e01234938a6a841f5ba05f7d60e0fdeb511b71"
+    },
+    {
+      "path": "components/ThemeSwitcher.tsx",
+      "language": "typescript",
+      "hash": "d8ad830af738f474778ff1072700ee1694f9d77b68368740102639a7e434148e"
+    },
+    {
+      "path": "components/feedback/CategoryFilter.tsx",
+      "language": "typescript",
+      "hash": "ad2084e49257db1ba14aa7dbd91f95123243b8a40cec049b33ab039099316fa9"
+    },
+    {
+      "path": "components/feedback/CreateFeedbackModal.tsx",
+      "language": "typescript",
+      "hash": "b4367f64ae8415aa357d4a0be9926cf897816474496c6694864cb74d7e42f415"
+    },
+    {
+      "path": "components/feedback/FeedbackDetailModal.tsx",
+      "language": "typescript",
+      "hash": "d9b1da93094316ed7b27a37676826a8e432b54218cbe5fb66905fdc39f10e7e8"
+    },
+    {
+      "path": "components/feedback/FeedbackItem.tsx",
+      "language": "typescript",
+      "hash": "884c576eeff9fd24180997afcf49bc623ad819b9b111838ed6826babfa33923e"
+    },
+    {
+      "path": "components/feedback/index.ts",
+      "language": "typescript",
+      "hash": "9ad0f3201a49ecdf308c849ff262d7e57804de76912e469338a5f9be789e45c6"
+    },
+    {
+      "path": "components/ui/AnimatedSpinner.tsx",
+      "language": "typescript",
+      "hash": "7522df240bea7e60e4f651a483e5628479cfed98194b0c9af1a50fa15300b958"
+    },
+    {
+      "path": "components/ui/BlurCard.tsx",
+      "language": "typescript",
+      "hash": "69eb8bbeeefc830c6583d3c38b6383837c351d0ad008a90778b0556d56f5c41c"
+    },
+    {
+      "path": "components/ui/Button.tsx",
+      "language": "typescript",
+      "hash": "567cafa41d37f25197a58c3b2948c5e92cd6599d3eec1c947bc80b3c2845ad11"
+    },
+    {
+      "path": "components/ui/DatePicker.tsx",
+      "language": "typescript",
+      "hash": "9a91a9447eebf633fb40896cda17f21df662b5bbce144a61228e7544f57e19d3"
+    },
+    {
+      "path": "components/ui/Header.tsx",
+      "language": "typescript",
+      "hash": "66e3dc335756b847e3718fe93a5040a90ebff1d17f437acf03405a466296a43c"
+    },
+    {
+      "path": "components/ui/Logo.tsx",
+      "language": "typescript",
+      "hash": "86363394d7bafb9c29f410c98c8817fc6b68ebc619b72201ea2bc6c3f54d649c"
+    },
+    {
+      "path": "components/ui/MagicallyAlert.tsx",
+      "language": "typescript",
+      "hash": "d630f6fdcb316bceeddcb7c1c16d71f9f9a1298d0070c056e0a876a5c4de9c84"
+    },
+    {
+      "path": "components/ui/ModalWrapper.tsx",
+      "language": "typescript",
+      "hash": "5724ebe5980e597df7bb15edb315f884f37b5011b0d8ec9a0805f441b5cfcd6d"
+    },
+    {
+      "path": "components/ui/Skeleton.tsx",
+      "language": "typescript",
+      "hash": "0fbb4ed4b935ea21146fc8ba7e362cad134223b95f9e293ec4ee6c460ece34d7"
+    },
+    {
+      "path": "components/ui/index.tsx",
+      "language": "typescript",
+      "hash": "1909f2d910a55791b3ccaf23ff366be8cf322c17aafb1f645c30876876775436"
+    },
+    {
+      "path": "constants/theme.ts",
+      "language": "typescript",
+      "hash": "ef7ef85dd7f82676c71dda4561cd35e8c0a30a7350392e6c1462984532c55b1b"
+    },
+    {
+      "path": "contexts/ThemeContext.tsx",
+      "language": "typescript",
+      "hash": "1ff882e576b227d18c48869d6afe43a7a80f8e6f5eb4d4810eb5b2ff161d6ca1"
+    },
+    {
+      "path": "magically/config.ts",
+      "language": "typescript",
+      "hash": "98daa1b57a4befcd2bd9a081b12fe77f21a63f0f5635e8206bb9ea1165c5dde2"
+    },
+    {
+      "path": "magically/entities/Feedback.ts",
+      "language": "typescript",
+      "hash": "6068e6407987c8c9c8613ac140c301ccad24ce182869766cdf642f927fa397c0"
+    },
+    {
+      "path": "magically/functions/cron-job/index.ts",
+      "language": "typescript",
+      "hash": "a6dfb2550598285cc08cd1532f1def0f5a652aebd9bbc150dbc3937ca24adf88"
+    },
+    {
+      "path": "magically/functions/cron-job/wrangler.toml",
+      "language": "text",
+      "hash": "0ff94053d12c07bdd88b4653992cab942c202b1e87da3ee2532eb64e264a5493"
+    },
+    {
+      "path": "magically/functions/health-check/index.ts",
+      "language": "typescript",
+      "hash": "46a3f33106f46ff8b36e32ca4a530f85344ce82d2a8b0e7b55988f942c684636"
+    },
+    {
+      "path": "magically/functions/health-check/wrangler.toml",
+      "language": "text",
+      "hash": "0c5de4e9911386a1fb77340dd761f7a018ac3d5730065e01d4b5bc5cb2611a88"
+    },
+    {
+      "path": "magically/functions/stripe-payment/index.ts",
+      "language": "typescript",
+      "hash": "7e86bcc254479e4fcd376c35fa84c68d3a04aabca75e3c0f862fdb4159ca6834"
+    },
+    {
+      "path": "magically/functions/stripe-payment/wrangler.toml",
+      "language": "text",
+      "hash": "0530460464c69b3dc519caafffe8b55c5ec57f9f34b74d4b312a96d5b79e7e3c"
+    },
+    {
+      "path": "magically/functions/stripe-webhook/index.ts",
+      "language": "typescript",
+      "hash": "b79db96880231a07080e04684395e6111e40368e76e8c6bc6fedd5dcf3fea2a4"
+    },
+    {
+      "path": "magically/functions/stripe-webhook/wrangler.toml",
+      "language": "text",
+      "hash": "3dc7fa155143fe15199922afcf12089f39a4f592eefce55aa923ef844b183be6"
+    },
+    {
+      "path": "magically/init.ts",
+      "language": "typescript",
+      "hash": "662dc8a14714144d2962ba316c832250a883064dd54a0cbac029dfb48e1d03f8"
+    },
+    {
+      "path": "magically/schemas/Feedback.json",
+      "language": "json",
+      "hash": "799e0b1c9960783eae03fc45bdd7ab27f50933670fd80f7045cd18fc4b7828d7"
+    },
+    {
+      "path": "magically/utils/NavigationLogger.ts",
+      "language": "typescript",
+      "hash": "11717b3be6a297a776ff89f0aec1d16ade9fc662a01329908aa398e7a47ccb95"
+    },
+    {
+      "path": "navigation/MainTabNavigator.tsx",
+      "language": "typescript",
+      "hash": "60665b4b83d538a814f7014413e6cf2dfed6be95010a22a8238af51a384c747d"
+    },
+    {
+      "path": "navigation/RootNavigator.tsx",
+      "language": "typescript",
+      "hash": "64f674c08dabf3c5c0da8f644b7e2cca780ff09020d5f12fefcdcf0b6fddee76"
+    },
+    {
+      "path": "screens/FeedbackScreen.tsx",
+      "language": "typescript",
+      "hash": "c2091c3f16b0c7b7a911c780d1630edbc2ce7108d78d628b30865865f9321cd0"
+    },
+    {
+      "path": "screens/LoginScreen.tsx",
+      "language": "typescript",
+      "hash": "168facaf82bcd3d4fb7ee247a35677cdedba2e9e677ca8bff689ec15ddfaf954"
+    },
+    {
+      "path": "screens/ProfileScreen.tsx",
+      "language": "typescript",
+      "hash": "a94afceb0098759d4abd824f41a5c991a11ebe3d2303ce4a4cb740bad0fac149"
+    },
+    {
+      "path": "services/BaseDownloadService.ts",
+      "language": "typescript",
+      "hash": "ecd0b40988ef5573022b36c7a0f50681d2e5a46ef2f87642bedccb08cc662095"
+    },
+    {
+      "path": "services/DownloadManager.ts",
+      "language": "typescript",
+      "hash": "fa5ed6712861cf28b1de159d07b3c6807849b9a32b63ca62c509cde73871c88d"
+    },
+    {
+      "path": "services/DownloadValidatorService.ts",
+      "language": "typescript",
+      "hash": "6a97ec64063568059db7b3dd4fe2fa9814e949e26958631d545b792991183b4a"
+    },
+    {
+      "path": "services/FileManagerService.ts",
+      "language": "typescript",
+      "hash": "9a1f0b187343577adb646bd7a5ab87c9375b936cbb9bfa630472a88690b2a1ad"
+    },
+    {
+      "path": "services/ProgressTrackingService.ts",
+      "language": "typescript",
+      "hash": "9e85766d29243dd047fd383341154b9930ecc143fec9b2450ca0d7a2c0e96e71"
+    },
+    {
+      "path": "services/accountService.ts",
+      "language": "typescript",
+      "hash": "e764a536411c5f67c664164df78a778e30acc70a2b0c3130838c61e3d55d6aa3"
+    },
+    {
+      "path": "stores/appStateStore.ts",
+      "language": "typescript",
+      "hash": "83ae3e99cb126e047ee51df361c061faf8e17673cffd3c0f0bea546ab33e5322"
+    },
+    {
+      "path": "types/downloadTypes.ts",
+      "language": "typescript",
+      "hash": "443fe196e5c1a2e368a9011b93e88e321431dc711cac1f54222dc58a2aed7139"
+    },
+    {
+      "path": "app.json",
+      "language": "json",
+      "hash": "56947c6d24795c136c1d689f01f0758463626efd918e17e442199af5f043773d"
+    },
+    {
+      "path": "package.json",
+      "language": "json",
+      "hash": "ed4f09267c916708102c96b07479ae8cdbfca56787316294b2570c2064dcb87f"
+    },
+    {
+      "path": "magically.json",
+      "language": "json",
+      "hash": "321308a5f9bac59869d40e4c11282a683080e335ef85771419ca0d85ff1bb520"
+    },
+    {
+      "path": "TODO.md",
+      "language": "markdown",
+      "hash": "f886a558e9fd47c387df3e484996cb19ed0c5fba563327de5dbb65a1166ea52b"
+    },
+    {
+      "path": "components/showcase/Reference.tsx",
+      "language": "typescript",
+      "hash": "c417134f9c1d8fb85232a5d993856bd7bcd44c4b3bfd884e5e9a8516dff0c345"
+    },
+    {
+      "path": "magically/schemas/LinkedAccount.json",
+      "language": "json",
+      "hash": "d20fd8d5216a9dbddf8da60ba9ec146abe2ca663ead39125b94ff81ac92a7ede"
+    },
+    {
+      "path": "magically/entities/LinkedAccount.ts",
+      "language": "typescript",
+      "hash": "626febf7d7151c441f0708ba5d06ed03eb7e3f12a3e9b82b95419d835baefcfb"
+    },
+    {
+      "path": "magically/entities/index.ts",
+      "language": "typescript",
+      "hash": "ab4430ae5d3154d617e97a07936f4044510bbb8be55a3ec762c0e8512e750e0b"
+    },
+    {
+      "path": "magically/schemas/Transaction.json",
+      "language": "json",
+      "hash": "9138bcccd4511e754d8702ae5f7ccfdbb5cb492f7a6eff6650e9ecc48f7e855a"
+    },
+    {
+      "path": "magically/entities/Transaction.ts",
+      "language": "typescript",
+      "hash": "012b9a24fc4ce4b642051fa5de717f06ffdd0af1a5bf02ccb601cf5279142e4f"
+    },
+    {
+      "path": "magically/schemas/KYCDocument.json",
+      "language": "json",
+      "hash": "3f6920530e27153868d7369ea2bbe6b0cc65e0ff7b5da95fe7d4b7dc2f4cddcf"
+    },
+    {
+      "path": "magically/entities/KYCDocument.ts",
+      "language": "typescript",
+      "hash": "8e2c6ca1e26881e1a852234d478845480d924194bea54f0e68f2fea2e0418675"
+    },
+    {
+      "path": "stores/payvexStore.ts",
+      "language": "typescript",
+      "hash": "0c70b10d863d4602ea56e65cfc3d7462a9528f3369eb5c41f8c0b3be5b60d0ff"
+    },
+    {
+      "path": "screens/HomeScreen.tsx",
+      "language": "typescript",
+      "hash": "3024b824725fdb4f831c3cf2c913b397caed994eb64b0944eac42e167c213274"
+    },
+    {
+      "path": "screens/AccountsScreen.tsx",
+      "language": "typescript",
+      "hash": "26cd85b8aab55fb4445cef2f9832dcf98eab4e7fefa299202147cae52f3fa0e4"
+    },
+    {
+      "path": "screens/TransactionsScreen.tsx",
+      "language": "typescript",
+      "hash": "313c44c3cd4bcdb9cb2ef0344759a1dbbd72c916366791a5ca9a827e1b734e25"
+    },
+    {
+      "path": "screens/SendMoneyScreen.tsx",
+      "language": "typescript",
+      "hash": "7cacc7599d8f647340c6798fccb03d0147c13836aa625fb09a62dbdf477684da"
+    },
+    {
+      "path": "PROJECT_RULES.md",
+      "language": "markdown",
+      "hash": "93d4eceb5d49d30797d9878b0dd0e053943d11d214c3265fd3c883b38b4d3859"
+    },
+    {
+      "path": "TASKS.md",
+      "language": "markdown",
+      "hash": "13720aeb58f90fea786086c9754dfd7f88f498fcdff199f75540f26c0bceb181"
+    },
+    {
+      "path": "screens/LinkAccountScreen.tsx",
+      "language": "typescript",
+      "hash": "aef6b8b6bc4057ccd9b20514b57b8ae61694f5f9b133e8421687adbc852854d6"
+    },
+    {
+      "path": "magically/functions/link-mpesa-account/index.ts",
+      "language": "typescript",
+      "hash": "5b299cc2fe0c6505f02510199ba063e6c24b65b7390744f3fd17c99d2985775d"
+    },
+    {
+      "path": "magically/functions/link-bank-account/index.ts",
+      "language": "typescript",
+      "hash": "4ce1ada1a65d3ba9187d1e93adf0db0466ddecd5915becff6ee93a7629768081"
+    },
+    {
+      "path": "magically/functions/link-trading-account/index.ts",
+      "language": "typescript",
+      "hash": "3df7f32ca629bce5afb057a8ab730f235219297fcd939e5174c987374f402465"
+    },
+    {
+      "path": "magically/functions/link-mpesa-account/wrangler.toml",
+      "language": "text",
+      "hash": "84c55b7a7feb27c5af325d6ffb2717f06ec8277a99ddc9a8bb878ab6668aa5b7"
+    },
+    {
+      "path": "magically/functions/link-bank-account/wrangler.toml",
+      "language": "text",
+      "hash": "d8e2d9b1010bf72defd150c793dcfa3443d4d01f247f45cf72658a4cc8d46fe7"
+    },
+    {
+      "path": "magically/functions/link-trading-account/wrangler.toml",
+      "language": "text",
+      "hash": "016ccc85c4e8c9ba254c4e6a88af765696e2e02ffdc820ae907327d6ed225ebd"
+    },
+    {
+      "path": "PROJECT.md",
+      "language": "markdown",
+      "hash": "77502834bbdba5b88b29055562f8bf3152d4a1fce65760b9e938fd125a477515"
+    }
+  ]
+}

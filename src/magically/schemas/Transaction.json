@@ -1,0 +1,85 @@
+{
+  "name": "Transaction",
+  "collection": "transactions",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "transactionType": {
+        "type": "string",
+        "required": true,
+        "enum": [
+          "send",
+          "receive",
+          "deposit",
+          "withdrawal",
+          "request"
+        ],
+        "description": "Type of transaction"
+      },
+      "amount": {
+        "type": "number",
+        "required": true,
+        "description": "Transaction amount"
+      },
+      "currency": {
+        "type": "string",
+        "required": true,
+        "default": "KES",
+        "description": "Transaction currency"
+      },
+      "status": {
+        "type": "string",
+        "required": true,
+        "enum": [
+          "completed",
+          "pending",
+          "failed",
+          "cancelled"
+        ],
+        "default": "pending",
+        "description": "Transaction status"
+      },
+      "recipientName": {
+        "type": "string",
+        "description": "Name of recipient (for send/request)"
+      },
+      "senderName": {
+        "type": "string",
+        "description": "Name of sender (for receive)"
+      },
+      "accountId": {
+        "type": "objectid",
+        "required": true,
+        "ref": "LinkedAccount",
+        "description": "Reference to linked account used"
+      },
+      "accountName": {
+        "type": "string",
+        "required": true,
+        "description": "Name of account used (cached for display)"
+      },
+      "description": {
+        "type": "string",
+        "description": "Optional transaction description or note"
+      },
+      "transactionDate": {
+        "type": "string",
+        "required": true,
+        "description": "Date and time of transaction"
+      },
+      "reference": {
+        "type": "string",
+        "description": "Transaction reference or ID from payment provider"
+      }
+    },
+    "required": [
+      "transactionType",
+      "amount",
+      "currency",
+      "status",
+      "accountId",
+      "accountName",
+      "transactionDate"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+name = "90baa2890ae1421eb59c-mpesa-balance-check"
+main = "index.ts"
+compatibility_date = "2024-01-01"
+
+[observability]
+enabled = true
+
+  [observability.logs]
+  enabled = true
+  invocation_logs = true
+
+[cors_headers]
+Access-Control-Allow-Origin = "*"
+Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+Access-Control-Allow-Headers = "Content-Type, Authorization"
+Access-Control-Max-Age = "86400"

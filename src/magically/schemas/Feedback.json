@@ -1,0 +1,91 @@
+{
+  "name": "Feedback",
+  "collection": "feedbacks",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "userId": {
+        "type": "string",
+        "description": "User who created this feedback"
+      },
+      "userEmail": {
+        "type": "string",
+        "description": "Email of the user for reference"
+      },
+      "title": {
+        "type": "string",
+        "description": "Title of the feedback or feature request"
+      },
+      "description": {
+        "type": "string",
+        "description": "Detailed description of the feedback"
+      },
+      "category": {
+        "type": "string",
+        "enum": ["bug", "feature", "improvement", "other"],
+        "default": "other",
+        "description": "Category of feedback"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["open", "in_review", "planned", "in_progress", "completed", "declined"],
+        "default": "open",
+        "description": "Current status of the feedback"
+      },
+      "votes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "userId": {
+              "type": "string"
+            },
+            "votedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "default": [],
+        "description": "Array of user votes"
+      },
+      "voteCount": {
+        "type": "number",
+        "default": 0,
+        "description": "Total number of votes"
+      },
+      "comments": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "userId": {
+              "type": "string"
+            },
+            "userEmail": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "default": [],
+        "description": "Array of comments on the feedback"
+      }
+    },
+    "required": [
+      "userId",
+      "title",
+      "description",
+      "category"
+    ]
+  }
+}

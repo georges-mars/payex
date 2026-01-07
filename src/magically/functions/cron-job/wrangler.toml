@@ -1,0 +1,26 @@
+name = "cron-job"
+main = "index.js"
+compatibility_date = "2023-10-30"
+compatibility_flags = ["nodejs_compat"]
+
+# COST WARNING: More frequent = more expensive!
+# Uncomment ONE of the following schedules:
+
+# Daily at midnight UTC (recommended)
+# [triggers]
+# crons = ["0 0 * * *"]
+
+# Weekly example (Sunday midnight UTC):
+# [triggers]
+# crons = ["0 0 * * 0"]
+
+# Monthly example (1st of month midnight UTC):
+# [triggers]
+# crons = ["0 0 1 * *"]
+
+[env.production]
+name = "cron-job"
+
+# Environment variables auto-injected by platform
+[env.production.vars]
+# MAGICALLY_PROJECT_ID, MAGICALLY_API_BASE_URL, MAGICALLY_API_KEY

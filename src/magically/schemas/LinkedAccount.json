@@ -1,0 +1,126 @@
+{
+  "name": "LinkedAccount",
+  "collection": "linked_accounts",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "accountType": {
+        "type": "string",
+        "required": true,
+        "enum": [
+          "mpesa",
+          "bank",
+          "deriv",
+          "binance",
+          "mt5",
+          "etoro",
+          "interactive_brokers"
+        ],
+        "description": "Type of account"
+      },
+      "accountName": {
+        "type": "string",
+        "required": true,
+        "description": "Display name for the account"
+      },
+      "accountNumber": {
+        "type": "string",
+        "required": true,
+        "description": "Masked account number or identifier"
+      },
+      "balance": {
+        "type": "number",
+        "required": true,
+        "default": 0,
+        "description": "Current balance in account"
+      },
+      "currency": {
+        "type": "string",
+        "required": true,
+        "default": "KES",
+        "description": "Currency code"
+      },
+      "status": {
+        "type": "string",
+        "required": true,
+        "enum": [
+          "active",
+          "inactive",
+          "pending",
+          "needs_verification"
+        ],
+        "default": "active",
+        "description": "Account status"
+      },
+      "isDefault": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether this is the default account"
+      },
+      "linkedDate": {
+        "type": "string",
+        "required": true,
+        "description": "Date when account was linked"
+      },
+      "metadata": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "description": "Original platform name"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "Account ID from trading platform"
+          },
+          "server": {
+            "type": "string",
+            "description": "MT5 server name"
+          },
+          "login": {
+            "type": "number",
+            "description": "MT5 login number"
+          },
+          "maskedApiKey": {
+            "type": "string",
+            "description": "Masked API key for display"
+          },
+          "lastSynced": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last time balance was synced"
+          },
+          "requiresManualVerification": {
+            "type": "boolean",
+            "description": "Whether manual verification is needed"
+          },
+          "brokerName": {
+            "type": "string",
+            "description": "Broker name for MT5 accounts"
+          },
+          "leverage": {
+            "type": "number",
+            "description": "Account leverage"
+          },
+          "marginLevel": {
+            "type": "number",
+            "description": "Margin level percentage"
+          },
+          "validatedWithRealApi": {
+            "type": "boolean",
+            "description": "Whether account was validated with real API"
+          }
+        }
+      }
+    },
+    "required": [
+      "accountType",
+      "accountName",
+      "accountNumber",
+      "balance",
+      "currency",
+      "status",
+      "linkedDate"
+    ]
+  }
+}
