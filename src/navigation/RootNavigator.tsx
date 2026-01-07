@@ -11,6 +11,9 @@ import { SendMoneyScreen } from '../screens/SendMoneyScreen';
 import { LinkAccountScreen } from '../screens/LinkAccountScreen';
 import MainTabNavigator from './MainTabNavigator';
 import { useAppStateStore } from '../stores/appStateStore';
+import LinkScreen from '../screens/LinkScreen';  // New
+import DepositScreen from '../screens/DepositScreen';  // New
+import WithdrawScreen from '../screens/WithdrawScreen';  // New
 
 export type RootStackParamList = {
   Welcome: undefined;
@@ -68,6 +71,9 @@ export const RootNavigator = () => {
           <Stack.Screen name="Feedback" component={FeedbackScreen}/>
           <Stack.Screen name="SendMoney" component={SendMoneyScreen} />
           <Stack.Screen name="LinkAccount" component={LinkAccountScreen} />
+          <Stack.Screen name="Link" component={LinkScreen} options={{ title: 'Link Accounts' }} />
+          <Stack.Screen name="Deposit" component={DepositScreen} options={{ title: 'Deposit' }} />
+          <Stack.Screen name="Withdraw" component={WithdrawScreen} options={{ title: 'Withdraw' }} />
         </>
       )}
     </Stack.Navigator>

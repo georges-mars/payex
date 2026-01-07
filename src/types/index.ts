@@ -1,0 +1,1 @@
+export type Broker = 'DERIV' | 'MT5';

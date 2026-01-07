@@ -38,9 +38,7 @@ function AppContent() {
         <NavigationContainer theme={navigationTheme} onStateChange={createNavigationLogger()}>
             <StatusBar style={statusBarStyle === 'light' ? 'light' : 'dark'} />
             <Toaster theme={themeMode} richColors />
-            <>{/* DO NOT REMOVE the magically alert component. Otherwise alerts will not show up.*/}</>
-            <MagicallyAlertComponent/>
-            {/* DO NOT REMOVE the magically alert component. Otherwise alerts will not show up.*/}
+            <MagicallyAlertComponent /> {/* DO NOT REMOVE the magically alert component. Otherwise alerts will not show up. */}
             <RootNavigator />
         </NavigationContainer>
     );
