@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, Animated } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, Animated, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowUpRight, ArrowDownLeft, Plus, Wallet, TrendingUp, CheckCircle2, Clock, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';

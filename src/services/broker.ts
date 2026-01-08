@@ -1,5 +1,5 @@
 // src/services/broker.ts
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Broker } from '../types';
 
@@ -15,7 +15,7 @@ const TOKEN_KEYS = {
 } as const;
 
 // ============================================
-// STORAGE
+// STORAGE - Using AsyncStorage
 // ============================================
 
 export async function saveBrokerToken(
@@ -25,10 +25,10 @@ export async function saveBrokerToken(
 ): Promise<void> {
   try {
     if (broker === 'DERIV') {
-      await SecureStore.setItemAsync(TOKEN_KEYS.DERIV, token);
+      await AsyncStorage.setItem(TOKEN_KEYS.DERIV, token);
     } else {
       const data = JSON.stringify({ token, accountId });
-      await SecureStore.setItemAsync(TOKEN_KEYS.MT5, data);
+      await AsyncStorage.setItem(TOKEN_KEYS.MT5, data);
     }
   } catch (error) {
     throw new Error('Failed to save credentials');
@@ -40,11 +40,11 @@ export async function getBrokerToken(
 ): Promise<{ token: string; accountId?: string } | null> {
   try {
     if (broker === 'DERIV') {
-      const token = await SecureStore.getItemAsync(TOKEN_KEYS.DERIV);
+      const token = await AsyncStorage.getItem(TOKEN_KEYS.DERIV);
       if (!token) return null;
       return { token };
     } else {
-      const data = await SecureStore.getItemAsync(TOKEN_KEYS.MT5);
+      const data = await AsyncStorage.getItem(TOKEN_KEYS.MT5);
       if (!data) return null;
       const parsed = JSON.parse(data);
       return { token: parsed.token, accountId: parsed.accountId };
@@ -60,14 +60,15 @@ export async function setMpesaPhone(phone: string): Promise<boolean> {
     console.error('Invalid Kenyan phone format. Use 254XXXXXXXXX');
     return false;
   }
-  await SecureStore.setItemAsync(TOKEN_KEYS.PHONE, phone);
+  await AsyncStorage.setItem(TOKEN_KEYS.PHONE, phone);
   return true;
 }
 
 export async function getMpesaPhone(): Promise<string | null> {
-  return await SecureStore.getItemAsync(TOKEN_KEYS.PHONE);
+  return await AsyncStorage.getItem(TOKEN_KEYS.PHONE);
 }
 
+// ... rest of your code remains exactly the same
 // ============================================
 // DERIV API (WebSocket - Direct)
 // ============================================
