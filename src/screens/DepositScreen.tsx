@@ -853,7 +853,7 @@ export default function DepositScreen() {
             </Pressable>
 
             <Pressable
-              onPress={() => navigation.navigate('Link')}
+              onPress={() => navigation.navigate('LinkAccount')}
               disabled={isProcessing}
               style={({ pressed }) => ({
                 backgroundColor: theme.cardBackground,
