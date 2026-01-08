@@ -1,4 +1,4 @@
-// src/services/broker.ts - COMPLETE REPLACEMENT
+// src/services/broker.ts - FIXED depositDerivMpesa function
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Broker } from '../types';
@@ -10,7 +10,7 @@ const DERIV_WS_URL = 'wss://ws.derivws.com/websockets/v3?app_id=1089';
 
 const TOKEN_KEYS = {
   DERIV: 'deriv_token',
-  MT5: 'mt5_data', // JSON {token: string, accountId: string}
+  MT5: 'mt5_data',
   PHONE: 'user_mpesa_phone',
 } as const;
 
@@ -56,13 +56,9 @@ export async function getBrokerToken(
   }
 }
 
-// In broker.ts - UPDATE setMpesaPhone function:
-// In broker.ts - COMPLETE setMpesaPhone function with better error handling
-// In broker.ts - COMPLETE REPLACEMENT
 export async function setMpesaPhone(phone: string): Promise<boolean> {
   console.log('🔧 [broker.ts] setMpesaPhone START - received:', phone);
   
-  // Input validation
   if (!phone || typeof phone !== 'string') {
     console.error('❌ [broker.ts] Invalid input - not a string');
     return false;
@@ -74,26 +70,20 @@ export async function setMpesaPhone(phone: string): Promise<boolean> {
   }
   
   try {
-    // Clean the phone number
     const cleanPhone = phone.replace(/\D/g, '');
     console.log('🔧 [broker.ts] After cleaning digits:', cleanPhone);
     
-    // Convert to 254 format if needed
     let formattedPhone = cleanPhone;
     
     if (cleanPhone.startsWith('0') && cleanPhone.length === 10) {
-      // Convert 0712345678 to 254712345678
       formattedPhone = '254' + cleanPhone.substring(1);
       console.log('🔧 [broker.ts] Converted 0 format:', formattedPhone);
     } else if (cleanPhone.startsWith('254') && cleanPhone.length === 12) {
-      // Already in correct format
       console.log('🔧 [broker.ts] Already in 254 format');
     } else if (cleanPhone.startsWith('7') && cleanPhone.length === 9) {
-      // Convert 712345678 to 254712345678
       formattedPhone = '254' + cleanPhone;
       console.log('🔧 [broker.ts] Converted 7 format:', formattedPhone);
     } else if (cleanPhone.startsWith('1') && cleanPhone.length === 9) {
-      // Convert 112345678 to 254112345678
       formattedPhone = '254' + cleanPhone;
       console.log('🔧 [broker.ts] Converted 1 format:', formattedPhone);
     } else {
@@ -101,7 +91,6 @@ export async function setMpesaPhone(phone: string): Promise<boolean> {
       return false;
     }
     
-    // Final validation
     if (formattedPhone.length !== 12) {
       console.error('❌ [broker.ts] Invalid length:', formattedPhone.length);
       return false;
@@ -114,10 +103,8 @@ export async function setMpesaPhone(phone: string): Promise<boolean> {
     
     console.log('🔧 [broker.ts] Final phone to save:', formattedPhone);
     
-    // Save to AsyncStorage
     await AsyncStorage.setItem(TOKEN_KEYS.PHONE, formattedPhone);
     
-    // Verify the save
     const saved = await AsyncStorage.getItem(TOKEN_KEYS.PHONE);
     console.log('🔧 [broker.ts] Verified saved value:', saved);
     
@@ -180,13 +167,13 @@ export async function validateDerivToken(token: string): Promise<boolean> {
       resolve(false);
     };
 
-    // Timeout after 5 seconds
     setTimeout(() => {
       cleanup();
       resolve(false);
     }, 5000);
   });
 }
+
 export function getDerivWithdrawUrl(amount?: number, phone?: string): string {
   let url = 'https://app.deriv.com/cashier/withdrawal';
   const params = new URLSearchParams();
@@ -199,7 +186,6 @@ export function getDerivWithdrawUrl(amount?: number, phone?: string): string {
     params.append('phone_number', phone);
   }
   
-  // Add M-Pesa as preferred method
   params.append('method', 'mpesa');
   
   const queryString = params.toString();
@@ -210,8 +196,6 @@ export function getDerivDepositUrl(amount?: number): string {
   const baseUrl = 'https://app.deriv.com/cashier/deposit?method=mpesa';
   return amount ? `${baseUrl}&amount=${amount}` : baseUrl;
 }
-
-
 
 // ============================================
 // MT5 API (via Cloudflare Worker Backend)
@@ -288,7 +272,6 @@ export async function linkBroker(
       if (!isValid) throw new Error('Invalid Deriv token');
       await saveBrokerToken('DERIV', data);
     } else {
-      // For MT5, data is token, accountId is separate
       if (!accountId) throw new Error('MT5 requires accountId');
       const isValid = await validateMT5Token(data, accountId);
       if (!isValid) throw new Error('Invalid MT5 credentials');
@@ -303,7 +286,6 @@ export async function linkBroker(
   }
 }
 
-
 export async function withdraw(
   broker: Broker,
   amount: number
@@ -315,7 +297,6 @@ export async function withdraw(
   if (!mpesa) throw new Error('Set M-Pesa phone number first');
 
   if (broker === 'DERIV') {
-    // DERIV: Open cashier in browser for user to complete withdrawal
     const url = getDerivWithdrawUrl(amount, mpesa);
     await WebBrowser.openBrowserAsync(url);
     
@@ -324,7 +305,6 @@ export async function withdraw(
       status: 'Withdrawal page opened - Complete the transaction in Deriv\'s cashier' 
     };
   } else {
-    // MT5: Use backend API
     if (!credentials.accountId) throw new Error('MT5 account ID missing');
     const result = await withdrawMT5(credentials.token, credentials.accountId, amount, mpesa);
     if (!result.success) throw new Error(result.message);
@@ -342,10 +322,14 @@ export async function initiateDeposit(broker: Broker, amount?: number): Promise<
   await WebBrowser.openBrowserAsync(url);
   console.log('Deposit link opened - user completes payment via broker');
 }
+
+// ============================================
+// FIXED: Deriv M-Pesa Deposit Function
+// ============================================
 export async function depositDerivMpesa(
   token: string,
   amountKES: number,
-  phone: string
+  phone: string  // Still passed in but used for validation only
 ): Promise<{ success: boolean; message: string }> {
   return new Promise((resolve) => {
     const ws = new WebSocket(DERIV_WS_URL);
@@ -377,6 +361,7 @@ export async function depositDerivMpesa(
         const amountUSD = (amountKES / 130).toFixed(2);
 
         // Step 2: Request deposit via M-Pesa
+        // ✅ FIXED: Removed phone_number field as Deriv doesn't accept it
         ws.send(
           JSON.stringify({
             cashier: 'deposit',
@@ -384,7 +369,7 @@ export async function depositDerivMpesa(
             type: 'api',
             verification_code: token,
             amount: amountUSD,
-            phone_number: phone,
+            // phone_number field REMOVED - Deriv uses account's stored number
           })
         );
       }
@@ -395,9 +380,17 @@ export async function depositDerivMpesa(
 
         if (data.error) {
           console.error('❌ Deposit error:', data.error);
+          
+          // Better error messages
+          let errorMessage = data.error.message || 'Deposit failed';
+          
+          if (errorMessage.includes('phone')) {
+            errorMessage = 'Please update your M-Pesa phone number in your Deriv account settings first';
+          }
+          
           resolve({ 
             success: false, 
-            message: data.error.message || 'Deposit failed' 
+            message: errorMessage
           });
         } else if (data.cashier) {
           console.log('✅ Deposit initiated:', data.cashier);
@@ -430,4 +423,5 @@ export async function depositDerivMpesa(
     }, 15000);
   });
 }
+
 export { Broker };
