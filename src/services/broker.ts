@@ -58,6 +58,8 @@ export async function getBrokerToken(
 
 // In broker.ts - UPDATE setMpesaPhone function:
 export async function setMpesaPhone(phone: string): Promise<boolean> {
+  console.log('[broker.ts] setMpesaPhone called with:', phone);
+  
   // Remove all non-digits
   const cleanPhone = phone.replace(/\D/g, '');
   
@@ -69,16 +71,33 @@ export async function setMpesaPhone(phone: string): Promise<boolean> {
     formattedPhone = cleanPhone.substring(1);
   }
   
-  // Final validation
+  // More lenient validation - just check it's a valid Kenyan number
+  // Kenyan numbers: 2547XXXXXXXX or 2541XXXXXXXX (12 digits total)
   const kePhoneRegex = /^254[17]\d{8}$/;
-  if (!kePhoneRegex.test(formattedPhone)) {
-    console.error('Invalid Kenyan phone format. Use 254XXXXXXXXX or 07XXXXXXXX');
+  
+  // Debug
+  console.log('[broker.ts] Testing:', formattedPhone, 'against regex:', kePhoneRegex);
+  console.log('[broker.ts] Length:', formattedPhone.length, 'Expected: 12');
+  console.log('[broker.ts] Starts with 2547 or 2541?:', 
+    formattedPhone.startsWith('2547') || formattedPhone.startsWith('2541'));
+  
+  const isValid = kePhoneRegex.test(formattedPhone);
+  console.log('[broker.ts] Regex test result:', isValid);
+  
+  if (!isValid) {
+    console.error('[broker.ts] Invalid format. Must be 2547XXXXXXXX or 2541XXXXXXXX');
+    console.error('[broker.ts] Got:', formattedPhone);
     return false;
   }
   
-  // Save the formatted number
-  await AsyncStorage.setItem(TOKEN_KEYS.PHONE, formattedPhone);
-  return true;
+  try {
+    await AsyncStorage.setItem(TOKEN_KEYS.PHONE, formattedPhone);
+    console.log('[broker.ts] Phone saved successfully:', formattedPhone);
+    return true;
+  } catch (error) {
+    console.error('[broker.ts] AsyncStorage error:', error);
+    return false;
+  }
 }
 
 export async function getMpesaPhone(): Promise<string | null> {
