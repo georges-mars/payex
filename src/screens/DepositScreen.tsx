@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { getBrokerToken, initiateDeposit, type Broker } from '../services/broker';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList, Broker } from '../types';
+import { getBrokerToken, initiateDeposit } from '../services/broker';
+
+type DepositScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function DepositScreen() {
+  const navigation = useNavigation<DepositScreenNavigationProp>();
   const [broker, setBroker] = useState<Broker>('DERIV');
   const [amount, setAmount] = useState('');
-  const navigation = useNavigation();
 
   const handleDeposit = async () => {
     if (!amount || parseFloat(amount) < 100) return Alert.alert('Error', 'Min KES 100');

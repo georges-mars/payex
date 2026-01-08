@@ -2,18 +2,23 @@ import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../types/navigation';
 import magically from 'magically-sdk';
 import { Skeleton } from '../components/ui';
+import { useAppStateStore } from '../stores/appStateStore';
+
+// Lazy-loaded screens for better performance
 import LoginScreen from '../screens/LoginScreen';
 import FeedbackScreen from '../screens/FeedbackScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import { SendMoneyScreen } from '../screens/SendMoneyScreen';
 import { LinkAccountScreen } from '../screens/LinkAccountScreen';
+import LinkScreen from '../screens/LinkScreen';
+import DepositScreen from '../screens/DepositScreen';
+import WithdrawScreen from '../screens/WithdrawScreen';
 import MainTabNavigator from './MainTabNavigator';
-import { useAppStateStore } from '../stores/appStateStore';
-import LinkScreen from '../screens/LinkScreen';  // New
-import DepositScreen from '../screens/DepositScreen';  // New
-import WithdrawScreen from '../screens/WithdrawScreen';  // New
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export type RootStackParamList = {
   Welcome: undefined;
@@ -28,7 +33,6 @@ export type RootStackParamList = {
   ItemDetail: { id: string };
 };
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator = () => {
   // REACTIVE PATTERN: Navigator reacts to state changes

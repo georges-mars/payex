@@ -3,6 +3,9 @@ import { View, Text, ScrollView, Pressable, RefreshControl, Animated } from 'rea
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowUpRight, ArrowDownLeft, Plus, Wallet, TrendingUp, CheckCircle2, Clock, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePayvexStore } from '../stores/payvexStore';
 import { LinkedAccounts } from '../magically/entities/LinkedAccount';
@@ -10,9 +13,11 @@ import { Transactions } from '../magically/entities/Transaction';
 import magically from 'magically-sdk';
 import { Skeleton, Logo } from '../components/ui';
 import { MagicallyAlert } from '../components/ui/MagicallyAlert';
-import { useNavigation } from '@react-navigation/native';
 
-export const HomeScreen = ({ navigation }: any) => {
+type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+export const HomeScreen = () => {
+  const navigation = useNavigation<HomeScreenNavigationProp>();
   const navigationHook = useNavigation();  // Renamed to avoid conflict with prop
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);

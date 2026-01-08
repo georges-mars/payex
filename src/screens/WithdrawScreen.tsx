@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { getBrokerToken, getMpesaPhone, withdraw, type Broker } from '../services/broker';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList, Broker } from '../types';
+import { getBrokerToken, getMpesaPhone, withdraw } from '../services/broker';
+
+type WithdrawScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function WithdrawScreen() {
+  const navigation = useNavigation<WithdrawScreenNavigationProp>();
   const [broker, setBroker] = useState<Broker>('DERIV');
   const [amount, setAmount] = useState('');
   const [status, setStatus] = useState('');
-  const navigation = useNavigation();
 
   const handleWithdraw = async () => {
     if (!amount || parseFloat(amount) < 100) return Alert.alert('Error', 'Min KES 100');

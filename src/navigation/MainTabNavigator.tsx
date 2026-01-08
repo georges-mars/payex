@@ -1,22 +1,19 @@
 import React from 'react';
-import {Platform} from 'react-native';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
-import {useTheme} from '../contexts/ThemeContext';
+import { Platform } from 'react-native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import type { MainTabsParamList } from '../types/navigation';
+import { useTheme } from '../contexts/ThemeContext';
 import { Home, Wallet, Receipt, User } from 'lucide-react-native';
+
+// Import screens
 import { HomeScreen } from '../screens/HomeScreen';
 import { AccountsScreen } from '../screens/AccountsScreen';
 import { TransactionsScreen } from '../screens/TransactionsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
-// Define tab types explicitly
-export type MainTabsParamList = {
-  Home: undefined;
-  Accounts: undefined;
-  Transactions: undefined;
-  Profile: undefined;
-};
-
 const Tab = createBottomTabNavigator<MainTabsParamList>();
+
+
 
 // Main tab navigator - completely driven by config
 export const MainTabNavigator = () => {
