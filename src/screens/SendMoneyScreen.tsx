@@ -11,44 +11,75 @@ import { MagicallyAlert } from '../components/ui/MagicallyAlert';
 export const SendMoneyScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const { accounts, setTransactions, transactions } = usePayvexStore();
-  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
-  const [recipientAccountId, setRecipientAccountId] = useState<string>('');
+  const [fromAccountId, setFromAccountId] = useState<string>('');
+  const [toAccountId, setToAccountId] = useState<string>('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [showRecipientDropdown, setShowRecipientDropdown] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [showFromDropdown, setShowFromDropdown] = useState(false);
+  const [showToDropdown, setShowToDropdown] = useState(false);
+  const [fromSearchQuery, setFromSearchQuery] = useState('');
+  const [toSearchQuery, setToSearchQuery] = useState('');
   
-  // Filter out the currently selected sender account from recipient list
-  const recipientAccounts = accounts.filter(account => account._id !== selectedAccountId);
-
-  useEffect(() => {
-    const defaultAccount = accounts.find(acc => acc.isDefault) || accounts[0];
-    if (defaultAccount) {
-      setSelectedAccountId(defaultAccount._id);
-    }
-    
-    // Auto-select first available recipient if exists
-    if (recipientAccounts.length > 0 && !recipientAccountId) {
-      setRecipientAccountId(recipientAccounts[0]._id);
-    }
-  }, [accounts, selectedAccountId]);
-
-  const selectedAccount = accounts.find(acc => acc._id === selectedAccountId);
-  const selectedRecipient = accounts.find(acc => acc._id === recipientAccountId);
-
-  // Filter recipient accounts based on search
-  const filteredRecipients = recipientAccounts.filter(account =>
-    account.accountName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    account.accountType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    account.currency.toLowerCase().includes(searchQuery.toLowerCase())
+  // Get the selected accounts
+  const fromAccount = accounts.find(acc => acc._id === fromAccountId);
+  const toAccount = accounts.find(acc => acc._id === toAccountId);
+  
+  // Filter accounts for dropdowns (exclude the other selected account)
+  const fromAccounts = accounts.filter(acc => acc._id !== toAccountId);
+  const toAccounts = accounts.filter(acc => acc._id !== fromAccountId);
+  
+  // Filter based on search queries
+  const filteredFromAccounts = fromAccounts.filter(account =>
+    account.accountName.toLowerCase().includes(fromSearchQuery.toLowerCase()) ||
+    account.accountType.toLowerCase().includes(fromSearchQuery.toLowerCase()) ||
+    account.currency.toLowerCase().includes(fromSearchQuery.toLowerCase())
+  );
+  
+  const filteredToAccounts = toAccounts.filter(account =>
+    account.accountName.toLowerCase().includes(toSearchQuery.toLowerCase()) ||
+    account.accountType.toLowerCase().includes(toSearchQuery.toLowerCase()) ||
+    account.currency.toLowerCase().includes(toSearchQuery.toLowerCase())
   );
 
-  const handleSelectRecipient = (accountId: string) => {
+  useEffect(() => {
+    // Auto-select first available accounts if none selected
+    if (accounts.length > 0) {
+      if (!fromAccountId) {
+        setFromAccountId(accounts[0]._id);
+      }
+      if (!toAccountId && accounts.length > 1) {
+        // Don't select same as from account
+        const availableToAccount = accounts.find(acc => acc._id !== fromAccountId);
+        if (availableToAccount) {
+          setToAccountId(availableToAccount._id);
+        }
+      }
+    }
+  }, [accounts, fromAccountId]);
+
+  const handleSelectFromAccount = (accountId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setRecipientAccountId(accountId);
-    setShowRecipientDropdown(false);
-    setSearchQuery('');
+    setFromAccountId(accountId);
+    setShowFromDropdown(false);
+    setFromSearchQuery('');
+    
+    // If the selected "From" account is currently selected as "To", clear "To" selection
+    if (accountId === toAccountId) {
+      setToAccountId('');
+    }
+  };
+
+  const handleSelectToAccount = (accountId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setToAccountId(accountId);
+    setShowToDropdown(false);
+    setToSearchQuery('');
+    
+    // If the selected "To" account is currently selected as "From", clear "From" selection
+    if (accountId === fromAccountId) {
+      setFromAccountId('');
+    }
   };
 
   const getAccountIcon = (type: string) => {
@@ -87,8 +118,13 @@ export const SendMoneyScreen = ({ navigation }: any) => {
   };
 
   const handleSendMoney = async () => {
-    if (!recipientAccountId) {
-      MagicallyAlert.alert('Missing Information', 'Please select a recipient account');
+    if (!fromAccountId || !toAccountId) {
+      MagicallyAlert.alert('Missing Information', 'Please select both From and To accounts');
+      return;
+    }
+
+    if (fromAccountId === toAccountId) {
+      MagicallyAlert.alert('Invalid Transfer', 'Cannot send money to the same account');
       return;
     }
 
@@ -98,23 +134,17 @@ export const SendMoneyScreen = ({ navigation }: any) => {
       return;
     }
 
-    if (!selectedAccount) {
+    if (!fromAccount) {
       MagicallyAlert.alert('No Account Selected', 'Please select an account to send from');
       return;
     }
 
-    if (!selectedRecipient) {
-      MagicallyAlert.alert('Invalid Recipient', 'Selected recipient account not found');
+    if (!toAccount) {
+      MagicallyAlert.alert('No Recipient Selected', 'Please select an account to send to');
       return;
     }
 
-    // Check if recipient is same as sender
-    if (selectedAccount._id === selectedRecipient._id) {
-      MagicallyAlert.alert('Invalid Transfer', 'Cannot send money to the same account');
-      return;
-    }
-
-    // Platform compatibility check (you might want to restrict some transfers)
+    // Platform compatibility check
     const incompatiblePlatforms = [
       { from: 'mpesa', to: ['deriv', 'binance', 'mt5', 'etoro', 'interactive_brokers'] },
       { from: 'bank', to: ['deriv', 'binance', 'mt5', 'etoro', 'interactive_brokers'] },
@@ -124,29 +154,29 @@ export const SendMoneyScreen = ({ navigation }: any) => {
     ];
 
     const incompatible = incompatiblePlatforms.find(
-      rule => rule.from === selectedAccount.accountType && 
-      rule.to.includes(selectedRecipient.accountType)
+      rule => rule.from === fromAccount.accountType && 
+      rule.to.includes(toAccount.accountType)
     );
 
     if (incompatible) {
       MagicallyAlert.alert(
         'Transfer Not Supported',
-        `Direct transfers from ${getAccountTypeLabel(selectedAccount.accountType)} to ${getAccountTypeLabel(selectedRecipient.accountType)} are not supported. Please use an intermediate account.`
+        `Direct transfers from ${getAccountTypeLabel(fromAccount.accountType)} to ${getAccountTypeLabel(toAccount.accountType)} are not supported. Please use an intermediate account.`
       );
       return;
     }
 
-    if (amountNum > selectedAccount.balance) {
-      MagicallyAlert.alert('Insufficient Balance', `Your ${selectedAccount.accountName} balance is ${selectedAccount.currency} ${selectedAccount.balance.toLocaleString()}`);
+    if (amountNum > fromAccount.balance) {
+      MagicallyAlert.alert('Insufficient Balance', `Your ${fromAccount.accountName} balance is ${fromAccount.currency} ${fromAccount.balance.toLocaleString()}`);
       return;
     }
 
     // Check if currency conversion is needed
-    const needsCurrencyConversion = selectedAccount.currency !== selectedRecipient.currency;
+    const needsCurrencyConversion = fromAccount.currency !== toAccount.currency;
     if (needsCurrencyConversion) {
       const confirm = await MagicallyAlert.confirm(
         'Currency Conversion Required',
-        `You're sending ${selectedAccount.currency} ${amountNum.toLocaleString()} to an account in ${selectedRecipient.currency}. The amount will be converted at current exchange rates. Continue?`,
+        `You're sending ${fromAccount.currency} ${amountNum.toLocaleString()} to an account in ${toAccount.currency}. The amount will be converted at current exchange rates. Continue?`,
         ['Cancel', 'Continue']
       );
       
@@ -174,11 +204,11 @@ export const SendMoneyScreen = ({ navigation }: any) => {
           'USDT_USD': 1.0,
         };
         
-        const rateKey = `${selectedAccount.currency}_${selectedRecipient.currency}`;
+        const rateKey = `${fromAccount.currency}_${toAccount.currency}`;
         conversionRate = rates[rateKey] || 1;
         convertedAmount = amountNum * conversionRate;
         
-        notes = `Converted at rate: 1 ${selectedAccount.currency} = ${conversionRate.toFixed(6)} ${selectedRecipient.currency}`;
+        notes = `Converted at rate: 1 ${fromAccount.currency} = ${conversionRate.toFixed(6)} ${toAccount.currency}`;
       }
 
       // Create transaction record
@@ -186,27 +216,26 @@ export const SendMoneyScreen = ({ navigation }: any) => {
         transactionType: 'send',
         amount: amountNum,
         convertedAmount: needsCurrencyConversion ? convertedAmount : undefined,
-        currency: selectedAccount.currency,
-        targetCurrency: selectedRecipient.currency,
+        currency: fromAccount.currency,
+        targetCurrency: toAccount.currency,
         conversionRate: needsCurrencyConversion ? conversionRate : undefined,
         status: 'completed',
-        recipientName: selectedRecipient.accountName,
-        recipientAccountId: selectedRecipient._id,
-        recipientAccountType: selectedRecipient.accountType,
-        accountId: selectedAccount._id,
-        accountName: selectedAccount.accountName,
+        recipientName: toAccount.accountName,
+        recipientAccountId: toAccount._id,
+        recipientAccountType: toAccount.accountType,
+        accountId: fromAccount._id,
+        accountName: fromAccount.accountName,
         description: `${description.trim() || 'Transfer'}${notes ? ` | ${notes}` : ''}`,
         transactionDate: new Date().toISOString(),
-        reference: `TXN-${selectedAccount.accountType.toUpperCase()}-TO-${selectedRecipient.accountType.toUpperCase()}-${Date.now()}`,
+        reference: `TXN-${fromAccount.accountType.toUpperCase()}-TO-${toAccount.accountType.toUpperCase()}-${Date.now()}`,
       });
 
-      // Update both accounts in store (simplified - in real app this would be handled by backend)
-      // This is just for UI updates
+      // Update transactions in store
       setTransactions([newTransaction, ...transactions]);
 
       MagicallyAlert.alert(
         'Transfer Successful!',
-        `${selectedAccount.currency} ${amountNum.toLocaleString()} sent to ${selectedRecipient.accountName}${needsCurrencyConversion ? ` (≈ ${selectedRecipient.currency} ${convertedAmount.toFixed(2)})` : ''}`,
+        `${fromAccount.currency} ${amountNum.toLocaleString()} sent to ${toAccount.accountName}${needsCurrencyConversion ? ` (≈ ${toAccount.currency} ${convertedAmount.toFixed(2)})` : ''}`,
         [
           {
             text: 'View Transaction',
@@ -230,174 +259,189 @@ export const SendMoneyScreen = ({ navigation }: any) => {
     }
   };
 
-  const RecipientDropdown = () => (
-    <Modal
-      visible={showRecipientDropdown}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setShowRecipientDropdown(false)}
-    >
-      <Pressable
-        style={{
-          flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-        onPress={() => setShowRecipientDropdown(false)}
+  const renderAccountDropdown = (type: 'from' | 'to') => {
+    const isFrom = type === 'from';
+    const isVisible = isFrom ? showFromDropdown : showToDropdown;
+    const accountsList = isFrom ? filteredFromAccounts : filteredToAccounts;
+    const searchQuery = isFrom ? fromSearchQuery : toSearchQuery;
+    const setSearchQuery = isFrom ? setFromSearchQuery : setToSearchQuery;
+    const onSelect = isFrom ? handleSelectFromAccount : handleSelectToAccount;
+    const selectedId = isFrom ? fromAccountId : toAccountId;
+    const onClose = () => isFrom ? setShowFromDropdown(false) : setShowToDropdown(false);
+
+    return (
+      <Modal
+        visible={isVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={onClose}
       >
         <Pressable
           style={{
-            width: '90%',
-            backgroundColor: theme.cardBackground,
-            borderRadius: 20,
-            maxHeight: '70%',
-            overflow: 'hidden',
-            borderWidth: 1,
-            borderColor: theme.border,
+            flex: 1,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
           }}
-          onPress={(e) => e.stopPropagation()}
+          onPress={onClose}
         >
-          <View style={{ padding: 20 }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 16 }}>
-              Select Account to Send To
-            </Text>
-            
-            {/* Search Bar */}
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: theme.inputBackground,
-              borderRadius: 12,
-              paddingHorizontal: 16,
-              marginBottom: 16,
-            }}>
-              <Search size={20} color={theme.textMuted} />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search accounts..."
-                placeholderTextColor={theme.textLight}
-                style={{
-                  flex: 1,
-                  padding: 14,
-                  fontSize: 16,
-                  color: theme.text,
-                  marginLeft: 8,
+          <Pressable
+            style={{
+              width: '90%',
+              backgroundColor: theme.cardBackground,
+              borderRadius: 20,
+              maxHeight: '70%',
+              overflow: 'hidden',
+              borderWidth: 1,
+              borderColor: theme.border,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={{ padding: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 16 }}>
+                {isFrom ? 'Select Account to Send From' : 'Select Account to Send To'}
+              </Text>
+              
+              {/* Search Bar */}
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: theme.inputBackground,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                marginBottom: 16,
+              }}>
+                <Search size={20} color={theme.textMuted} />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search accounts..."
+                  placeholderTextColor={theme.textLight}
+                  style={{
+                    flex: 1,
+                    padding: 14,
+                    fontSize: 16,
+                    color: theme.text,
+                    marginLeft: 8,
+                  }}
+                  autoFocus
+                />
+              </View>
+              
+              {/* Accounts Count */}
+              <Text style={{ fontSize: 13, color: theme.textMuted, marginBottom: 12 }}>
+                {accountsList.length} account{accountsList.length !== 1 ? 's' : ''} available
+              </Text>
+              
+              {/* Accounts List */}
+              <FlatList
+                data={accountsList}
+                keyExtractor={(item) => item._id}
+                showsVerticalScrollIndicator={false}
+                style={{ maxHeight: 350 }}
+                renderItem={({ item: account }) => {
+                  const IconComponent = getAccountIcon(account.accountType);
+                  const iconColor = getAccountColor(account.accountType);
+                  const isSelected = account._id === selectedId;
+
+                  return (
+                    <Pressable
+                      onPress={() => onSelect(account._id)}
+                      style={({ pressed }) => ({
+                        backgroundColor: pressed ? theme.muted : 'transparent',
+                        padding: 16,
+                        borderRadius: 12,
+                        marginBottom: 8,
+                        borderWidth: 2,
+                        borderColor: isSelected ? theme.primary : theme.borderLight,
+                      })}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 12,
+                            backgroundColor: `${iconColor}15`,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: 12,
+                          }}
+                        >
+                          <IconComponent size={24} color={iconColor} strokeWidth={2} />
+                        </View>
+                        
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 4 }}>
+                            {account.accountName}
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 12, color: theme.textMuted, marginRight: 8 }}>
+                              {getAccountTypeLabel(account.accountType)}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: theme.primary, fontWeight: '600' }}>
+                              {account.currency} {account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </Text>
+                          </View>
+                        </View>
+                        
+                        {isSelected && (
+                          <View
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: 12,
+                              backgroundColor: theme.primary,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Text style={{ color: theme.primaryForeground, fontSize: 16, fontWeight: '700' }}>✓</Text>
+                          </View>
+                        )}
+                      </View>
+                    </Pressable>
+                  );
                 }}
-                autoFocus
+                ListEmptyComponent={
+                  <View style={{ padding: 30, alignItems: 'center' }}>
+                    <User size={48} color={theme.textMuted} />
+                    <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 12, fontSize: 15 }}>
+                      {searchQuery ? 'No accounts found' : 'No accounts available'}
+                    </Text>
+                    {!searchQuery && (
+                      <Text style={{ color: theme.textLight, textAlign: 'center', marginTop: 6, fontSize: 13 }}>
+                        Link more accounts to send money
+                      </Text>
+                    )}
+                  </View>
+                }
               />
             </View>
             
-            {/* Recipients Count */}
-            <Text style={{ fontSize: 13, color: theme.textMuted, marginBottom: 12 }}>
-              {filteredRecipients.length} connected account{filteredRecipients.length !== 1 ? 's' : ''} available
-            </Text>
-            
-            {/* Accounts List */}
-            <FlatList
-              data={filteredRecipients}
-              keyExtractor={(item) => item._id}
-              showsVerticalScrollIndicator={false}
-              style={{ maxHeight: 350 }}
-              renderItem={({ item: account }) => {
-                const IconComponent = getAccountIcon(account.accountType);
-                const iconColor = getAccountColor(account.accountType);
-                const isSelected = account._id === recipientAccountId;
-
-                return (
-                  <Pressable
-                    onPress={() => handleSelectRecipient(account._id)}
-                    style={({ pressed }) => ({
-                      backgroundColor: pressed ? theme.muted : 'transparent',
-                      padding: 16,
-                      borderRadius: 12,
-                      marginBottom: 8,
-                      borderWidth: 2,
-                      borderColor: isSelected ? theme.primary : theme.borderLight,
-                    })}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View
-                        style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 12,
-                          backgroundColor: `${iconColor}15`,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginRight: 12,
-                        }}
-                      >
-                        <IconComponent size={24} color={iconColor} strokeWidth={2} />
-                      </View>
-                      
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 4 }}>
-                          {account.accountName}
-                        </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 12, color: theme.textMuted, marginRight: 8 }}>
-                            {getAccountTypeLabel(account.accountType)}
-                          </Text>
-                          <Text style={{ fontSize: 12, color: theme.primary, fontWeight: '600' }}>
-                            {account.currency} {account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      {isSelected && (
-                        <View
-                          style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 12,
-                            backgroundColor: theme.primary,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <Text style={{ color: theme.primaryForeground, fontSize: 16, fontWeight: '700' }}>✓</Text>
-                        </View>
-                      )}
-                    </View>
-                  </Pressable>
-                );
-              }}
-              ListEmptyComponent={
-                <View style={{ padding: 30, alignItems: 'center' }}>
-                  <User size={48} color={theme.textMuted} />
-                  <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 12, fontSize: 15 }}>
-                    {searchQuery ? 'No accounts found' : 'No other accounts available'}
-                  </Text>
-                  {!searchQuery && (
-                    <Text style={{ color: theme.textLight, textAlign: 'center', marginTop: 6, fontSize: 13 }}>
-                      Link more accounts to send money between them
-                    </Text>
-                  )}
-                </View>
-              }
-            />
-          </View>
-          
-          {/* Close Button */}
-          <Pressable
-            onPress={() => setShowRecipientDropdown(false)}
-            style={({ pressed }) => ({
-              padding: 16,
-              borderTopWidth: 1,
-              borderTopColor: theme.border,
-              backgroundColor: pressed ? theme.muted : theme.cardBackground,
-            })}
-          >
-            <Text style={{ color: theme.textMuted, fontSize: 16, fontWeight: '600', textAlign: 'center' }}>
-              Cancel
-            </Text>
+            {/* Close Button */}
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => ({
+                padding: 16,
+                borderTopWidth: 1,
+                borderTopColor: theme.border,
+                backgroundColor: pressed ? theme.muted : theme.cardBackground,
+              })}
+            >
+              <Text style={{ color: theme.textMuted, fontSize: 16, fontWeight: '600', textAlign: 'center' }}>
+                Cancel
+              </Text>
+            </Pressable>
           </Pressable>
         </Pressable>
-      </Pressable>
-    </Modal>
-  );
+      </Modal>
+    );
+  };
+
+  // Quick selection accounts (excluding the other selected account)
+  const quickFromAccounts = fromAccounts.slice(0, 4);
+  const quickToAccounts = toAccounts.slice(0, 4);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -437,108 +481,163 @@ export const SendMoneyScreen = ({ navigation }: any) => {
           {/* From Account Section */}
           <View style={{ marginBottom: 24 }}>
             <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 12 }}>
-              FROM ACCOUNT
+              FROM ACCOUNT *
             </Text>
-            <View style={{ gap: 10 }}>
-              {accounts.length === 0 ? (
-                <View style={{ padding: 24, alignItems: 'center' }}>
-                  <Text style={{ color: theme.textMuted, textAlign: 'center' }}>
-                    No accounts available. Please link an account first.
+            
+            {accounts.length === 0 ? (
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <Text style={{ color: theme.textMuted, textAlign: 'center' }}>
+                  No accounts available. Please link an account first.
+                </Text>
+                <Pressable
+                  onPress={() => navigation.navigate('LinkAccount')}
+                  style={({ pressed }) => ({
+                    marginTop: 16,
+                    paddingHorizontal: 20,
+                    paddingVertical: 12,
+                    backgroundColor: theme.primary,
+                    borderRadius: 12,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  })}
+                >
+                  <Text style={{ color: theme.primaryForeground, fontWeight: '600' }}>
+                    Link Account
                   </Text>
-                  <Pressable
-                    onPress={() => navigation.navigate('LinkAccount')}
-                    style={({ pressed }) => ({
-                      marginTop: 16,
-                      paddingHorizontal: 20,
-                      paddingVertical: 12,
-                      backgroundColor: theme.primary,
-                      borderRadius: 12,
-                      transform: [{ scale: pressed ? 0.98 : 1 }],
-                    })}
-                  >
-                    <Text style={{ color: theme.primaryForeground, fontWeight: '600' }}>
-                      Link Account
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : (
-                accounts.map((account) => {
-                  const IconComponent = getAccountIcon(account.accountType);
-                  const iconColor = getAccountColor(account.accountType);
-                  const isSelected = account._id === selectedAccountId;
-
-                  return (
-                    <Pressable
-                      key={account._id}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setSelectedAccountId(account._id);
-                      }}
-                      style={({ pressed }) => ({
-                        backgroundColor: theme.cardBackground,
-                        borderRadius: 16,
-                        padding: 16,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        borderWidth: 2,
-                        borderColor: isSelected ? theme.primary : theme.borderLight,
-                        transform: [{ scale: pressed ? 0.98 : 1 }],
-                      })}
-                    >
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowFromDropdown(true);
+                  }}
+                  style={({ pressed }) => ({
+                    backgroundColor: theme.inputBackground,
+                    borderRadius: 14,
+                    padding: 16,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                    marginBottom: 12,
+                  })}
+                >
+                  {fromAccount ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                       <View
                         style={{
                           width: 48,
                           height: 48,
                           borderRadius: 12,
-                          backgroundColor: `${iconColor}15`,
+                          backgroundColor: `${getAccountColor(fromAccount.accountType)}15`,
                           alignItems: 'center',
                           justifyContent: 'center',
                           marginRight: 12,
                         }}
                       >
-                        <IconComponent size={24} color={iconColor} strokeWidth={2} />
+                        {React.createElement(getAccountIcon(fromAccount.accountType), {
+                          size: 24,
+                          color: getAccountColor(fromAccount.accountType),
+                          strokeWidth: 2
+                        })}
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 2 }}>
-                          {account.accountName}
+                          {fromAccount.accountName}
                         </Text>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: theme.primary }}>
-                          {account.currency} {account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        <Text style={{ fontSize: 13, color: theme.textMuted }}>
+                          {getAccountTypeLabel(fromAccount.accountType)} • {fromAccount.currency} {fromAccount.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </Text>
                       </View>
-                      {isSelected && (
-                        <View
-                          style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 12,
-                            backgroundColor: theme.primary,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <Text style={{ color: theme.primaryForeground, fontSize: 16, fontWeight: '700' }}>✓</Text>
-                        </View>
-                      )}
-                    </Pressable>
-                  );
-                })
-              )}
-            </View>
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: 16, color: theme.textLight, flex: 1 }}>
+                      Select account to send from...
+                    </Text>
+                  )}
+                  <ChevronDown size={20} color={theme.textMuted} />
+                </Pressable>
+                
+                {/* Quick From selection */}
+                {quickFromAccounts.length > 0 && (
+                  <View>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
+                      QUICK SELECT
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        {quickFromAccounts.map((account) => {
+                          const IconComponent = getAccountIcon(account.accountType);
+                          const iconColor = getAccountColor(account.accountType);
+                          
+                          return (
+                            <Pressable
+                              key={account._id}
+                              onPress={() => handleSelectFromAccount(account._id)}
+                              style={({ pressed }) => ({
+                                backgroundColor: pressed ? theme.muted : theme.cardBackground,
+                                padding: 12,
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: fromAccountId === account._id ? theme.primary : theme.border,
+                                alignItems: 'center',
+                                minWidth: 100,
+                                transform: [{ scale: pressed ? 0.95 : 1 }],
+                              })}
+                            >
+                              <View
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: 9,
+                                  backgroundColor: `${iconColor}15`,
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  marginBottom: 8,
+                                }}
+                              >
+                                <IconComponent size={18} color={iconColor} strokeWidth={2} />
+                              </View>
+                              <Text 
+                                style={{ 
+                                  fontSize: 11, 
+                                  color: theme.text,
+                                  textAlign: 'center',
+                                  fontWeight: fromAccountId === account._id ? '600' : '400'
+                                }}
+                                numberOfLines={1}
+                              >
+                                {account.accountName}
+                              </Text>
+                              <Text style={{ fontSize: 10, color: theme.textMuted, marginTop: 4 }}>
+                                {account.currency}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
+                  </View>
+                )}
+              </>
+            )}
           </View>
 
-          {/* Recipient Account Section */}
+          {/* To Account Section */}
           <View style={{ marginBottom: 20 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted }}>
                 TO ACCOUNT *
               </Text>
               <Text style={{ fontSize: 12, color: theme.textMuted }}>
-                {recipientAccounts.length} available
+                {toAccounts.length} available
               </Text>
             </View>
             
-            {recipientAccounts.length === 0 ? (
+            {accounts.length < 2 ? (
               <View style={{
                 backgroundColor: theme.cardBackground,
                 borderRadius: 14,
@@ -550,7 +649,7 @@ export const SendMoneyScreen = ({ navigation }: any) => {
               }}>
                 <User size={32} color={theme.textMuted} />
                 <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 12, fontSize: 15 }}>
-                  No other accounts available
+                  {accounts.length === 0 ? 'No accounts available' : 'Only one account available'}
                 </Text>
                 <Text style={{ color: theme.textLight, textAlign: 'center', marginTop: 6, fontSize: 13 }}>
                   Link more accounts to send money between them
@@ -576,7 +675,7 @@ export const SendMoneyScreen = ({ navigation }: any) => {
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowRecipientDropdown(true);
+                    setShowToDropdown(true);
                   }}
                   style={({ pressed }) => ({
                     backgroundColor: theme.inputBackground,
@@ -588,66 +687,67 @@ export const SendMoneyScreen = ({ navigation }: any) => {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     transform: [{ scale: pressed ? 0.98 : 1 }],
+                    marginBottom: 12,
                   })}
                 >
-                  {selectedRecipient ? (
+                  {toAccount ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                       <View
                         style={{
                           width: 48,
                           height: 48,
                           borderRadius: 12,
-                          backgroundColor: `${getAccountColor(selectedRecipient.accountType)}15`,
+                          backgroundColor: `${getAccountColor(toAccount.accountType)}15`,
                           alignItems: 'center',
                           justifyContent: 'center',
                           marginRight: 12,
                         }}
                       >
-                        {React.createElement(getAccountIcon(selectedRecipient.accountType), {
+                        {React.createElement(getAccountIcon(toAccount.accountType), {
                           size: 24,
-                          color: getAccountColor(selectedRecipient.accountType),
+                          color: getAccountColor(toAccount.accountType),
                           strokeWidth: 2
                         })}
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 2 }}>
-                          {selectedRecipient.accountName}
+                          {toAccount.accountName}
                         </Text>
                         <Text style={{ fontSize: 13, color: theme.textMuted }}>
-                          {getAccountTypeLabel(selectedRecipient.accountType)} • {selectedRecipient.currency}
+                          {getAccountTypeLabel(toAccount.accountType)} • {toAccount.currency} {toAccount.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </Text>
                       </View>
                     </View>
                   ) : (
                     <Text style={{ fontSize: 16, color: theme.textLight, flex: 1 }}>
-                      Select recipient account...
+                      Select account to send to...
                     </Text>
                   )}
                   <ChevronDown size={20} color={theme.textMuted} />
                 </Pressable>
                 
-                {/* Quick recipient selection */}
-                {recipientAccounts.length > 0 && (
-                  <View style={{ marginTop: 12 }}>
+                {/* Quick To selection */}
+                {quickToAccounts.length > 0 && (
+                  <View>
                     <Text style={{ fontSize: 12, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
                       QUICK SELECT
                     </Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                       <View style={{ flexDirection: 'row', gap: 8 }}>
-                        {recipientAccounts.slice(0, 4).map((account) => {
+                        {quickToAccounts.map((account) => {
                           const IconComponent = getAccountIcon(account.accountType);
                           const iconColor = getAccountColor(account.accountType);
                           
                           return (
                             <Pressable
                               key={account._id}
-                              onPress={() => handleSelectRecipient(account._id)}
+                              onPress={() => handleSelectToAccount(account._id)}
                               style={({ pressed }) => ({
                                 backgroundColor: pressed ? theme.muted : theme.cardBackground,
                                 padding: 12,
                                 borderRadius: 12,
                                 borderWidth: 1,
-                                borderColor: recipientAccountId === account._id ? theme.primary : theme.border,
+                                borderColor: toAccountId === account._id ? theme.primary : theme.border,
                                 alignItems: 'center',
                                 minWidth: 100,
                                 transform: [{ scale: pressed ? 0.95 : 1 }],
@@ -671,11 +771,14 @@ export const SendMoneyScreen = ({ navigation }: any) => {
                                   fontSize: 11, 
                                   color: theme.text,
                                   textAlign: 'center',
-                                  fontWeight: recipientAccountId === account._id ? '600' : '400'
+                                  fontWeight: toAccountId === account._id ? '600' : '400'
                                 }}
                                 numberOfLines={1}
                               >
                                 {account.accountName}
+                              </Text>
+                              <Text style={{ fontSize: 10, color: theme.textMuted, marginTop: 4 }}>
+                                {account.currency}
                               </Text>
                             </Pressable>
                           );
@@ -691,7 +794,7 @@ export const SendMoneyScreen = ({ navigation }: any) => {
           {/* Amount Section */}
           <View style={{ marginBottom: 20 }}>
             <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
-              AMOUNT ({selectedAccount?.currency || 'KES'}) *
+              AMOUNT ({fromAccount?.currency || 'KES'}) *
             </Text>
             <TextInput
               value={amount}
@@ -710,17 +813,17 @@ export const SendMoneyScreen = ({ navigation }: any) => {
                 borderColor: theme.border,
               }}
             />
-            {selectedAccount && selectedRecipient && selectedAccount.currency !== selectedRecipient.currency && (
+            {fromAccount && toAccount && fromAccount.currency !== toAccount.currency && (
               <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={{ fontSize: 12, color: theme.warning, marginRight: 6 }}>⚠️</Text>
                 <Text style={{ fontSize: 12, color: theme.textMuted }}>
-                  Currency conversion required ({selectedAccount.currency} → {selectedRecipient.currency})
+                  Currency conversion required ({fromAccount.currency} → {toAccount.currency})
                 </Text>
               </View>
             )}
-            {selectedAccount && (
+            {fromAccount && (
               <Text style={{ fontSize: 13, color: theme.textMuted, marginTop: 8 }}>
-                Available: {selectedAccount.currency} {selectedAccount.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                Available: {fromAccount.currency} {fromAccount.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </Text>
             )}
           </View>
@@ -754,9 +857,9 @@ export const SendMoneyScreen = ({ navigation }: any) => {
           {/* Send Button */}
           <Pressable
             onPress={handleSendMoney}
-            disabled={isSending || accounts.length === 0 || !recipientAccountId || recipientAccounts.length === 0}
+            disabled={isSending || accounts.length < 2 || !fromAccountId || !toAccountId}
             style={({ pressed }) => ({
-              backgroundColor: isSending || accounts.length === 0 || !recipientAccountId || recipientAccounts.length === 0 ? theme.muted : theme.primary,
+              backgroundColor: isSending || accounts.length < 2 || !fromAccountId || !toAccountId ? theme.muted : theme.primary,
               borderRadius: 16,
               padding: 18,
               flexDirection: 'row',
@@ -777,8 +880,8 @@ export const SendMoneyScreen = ({ navigation }: any) => {
               <>
                 <Send size={20} color={theme.primaryForeground} strokeWidth={2.5} />
                 <Text style={{ color: theme.primaryForeground, fontSize: 17, fontWeight: '600' }}>
-                  {selectedAccount && selectedRecipient 
-                    ? `Send from ${selectedAccount.accountName} to ${selectedRecipient.accountName}`
+                  {fromAccount && toAccount 
+                    ? `Send from ${fromAccount.accountName} to ${toAccount.accountName}`
                     : 'Send Money'
                   }
                 </Text>
@@ -787,7 +890,7 @@ export const SendMoneyScreen = ({ navigation }: any) => {
           </Pressable>
 
           {/* Transfer Info Note */}
-          {selectedAccount && selectedRecipient && (
+          {fromAccount && toAccount && (
             <View style={{
               marginTop: 20,
               backgroundColor: `${theme.secondary}10`,
@@ -796,21 +899,27 @@ export const SendMoneyScreen = ({ navigation }: any) => {
               borderLeftWidth: 3,
               borderLeftColor: theme.secondary,
             }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text, marginBottom: 4 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text, marginBottom: 8 }}>
                 Transfer Information
               </Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                 <Text style={{ fontSize: 12, color: theme.textMuted }}>From:</Text>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: theme.text }}>{selectedAccount.accountName}</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: theme.text }}>{fromAccount.accountName}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                 <Text style={{ fontSize: 12, color: theme.textMuted }}>To:</Text>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: theme.text }}>{selectedRecipient.accountName}</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: theme.text }}>{toAccount.accountName}</Text>
               </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                 <Text style={{ fontSize: 12, color: theme.textMuted }}>Type:</Text>
                 <Text style={{ fontSize: 12, fontWeight: '600', color: theme.text }}>
-                  {getAccountTypeLabel(selectedAccount.accountType)} → {getAccountTypeLabel(selectedRecipient.accountType)}
+                  {getAccountTypeLabel(fromAccount.accountType)} → {getAccountTypeLabel(toAccount.accountType)}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 12, color: theme.textMuted }}>Currencies:</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: theme.text }}>
+                  {fromAccount.currency} → {toAccount.currency}
                 </Text>
               </View>
             </View>
@@ -818,8 +927,9 @@ export const SendMoneyScreen = ({ navigation }: any) => {
         </View>
       </ScrollView>
 
-      {/* Recipient Dropdown Modal */}
-      <RecipientDropdown />
+      {/* Dropdown Modals */}
+      {renderAccountDropdown('from')}
+      {renderAccountDropdown('to')}
     </View>
   );
 };

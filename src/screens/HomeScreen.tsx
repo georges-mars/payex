@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, Animated, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowUpRight, ArrowDownLeft, Plus, Wallet, TrendingUp, CheckCircle2, Clock, AlertCircle } from 'lucide-react-native';
+import { ArrowUpRight, ArrowDownLeft, Plus, Wallet, TrendingUp, CheckCircle2, Clock, AlertCircle, LogOut } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,7 +18,7 @@ type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const HomeScreen = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
-  const navigationHook = useNavigation();  // Renamed to avoid conflict with prop
+  const navigationHook = useNavigation();
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const {
@@ -145,13 +145,17 @@ export const HomeScreen = () => {
           paddingTop: 60,
         }}
       >
-        <Text style={{ fontSize: 28, fontWeight: '700', color: theme.text, marginBottom: 4 }}>
-          Welcome back, {userName}
-        </Text>
-        <Text style={{ fontSize: 16, color: theme.textMuted, marginBottom: 28 }}>
-          Here's your financial overview
-        </Text>
+        {/* Header Section */}
+        <View style={{ marginBottom: 32 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: theme.text, marginBottom: 4 }}>
+            Welcome back, {userName}
+          </Text>
+          <Text style={{ fontSize: 16, color: theme.textMuted, marginBottom: 4 }}>
+            Here's your financial overview
+          </Text>
+        </View>
 
+        {/* Total Balance Card */}
         <LinearGradient
           colors={['#0A3B7F', '#0D4A9F']}
           start={{ x: 0, y: 0 }}
@@ -194,6 +198,7 @@ export const HomeScreen = () => {
             </LinearGradient>
           </View>
 
+          {/* Quick Actions */}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
             {[
               { icon: ArrowUpRight, label: 'Send', action: 'send' },
@@ -223,8 +228,87 @@ export const HomeScreen = () => {
           </View>
         </LinearGradient>
 
-        
+        {/* Trading Funds Section */}
+        <LinearGradient
+          colors={['#10B98115', '#05966908']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 28,
+            borderWidth: 1,
+            borderColor: '#10B98125',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <View style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              backgroundColor: '#10B98120',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 12,
+            }}>
+              <LogOut size={22} color="#10B981" strokeWidth={2} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 17, fontWeight: '600', color: theme.text, marginBottom: 2 }}>
+                Trading Funds
+              </Text>
+              <Text style={{ fontSize: 13, color: theme.textMuted }}>
+                Deposit or withdraw from your broker accounts
+              </Text>
+            </View>
+          </View>
 
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <Pressable
+              onPress={() => handlePayVexAction('deposit')}
+              style={({ pressed }) => ({
+                flex: 1,
+                backgroundColor: pressed ? '#0A3B7F20' : '#0A3B7F',
+                borderRadius: 14,
+                padding: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: 8,
+                transform: [{ scale: pressed ? 0.96 : 1 }],
+              })}
+            >
+              <ArrowDownLeft size={18} color="#FFFFFF" strokeWidth={2.5} />
+              <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600' }}>
+                Deposit
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => handlePayVexAction('withdraw')}
+              style={({ pressed }) => ({
+                flex: 1,
+                backgroundColor: pressed ? '#FFFFFF' : '#F8FAFC',
+                borderRadius: 14,
+                padding: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: 8,
+                borderWidth: 1,
+                borderColor: '#E2E8F0',
+                transform: [{ scale: pressed ? 0.96 : 1 }],
+              })}
+            >
+              <ArrowUpRight size={18} color="#0A3B7F" strokeWidth={2.5} />
+              <Text style={{ color: '#0A3B7F', fontSize: 14, fontWeight: '600' }}>
+                Withdraw
+              </Text>
+            </Pressable>
+          </View>
+        </LinearGradient>
+
+        {/* Connected Accounts Section */}
         <View style={{ marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text }}>
@@ -304,6 +388,7 @@ export const HomeScreen = () => {
           )}
         </View>
 
+        {/* Recent Transactions Section */}
         <View style={{ marginBottom: 32 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text }}>
@@ -408,4 +493,3 @@ export const HomeScreen = () => {
     </ScrollView>
   );
 };
-
