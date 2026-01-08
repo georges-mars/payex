@@ -6,7 +6,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ArrowRight, Wallet, AlertCircle, CreditCard, Shield, Search, ArrowLeft, TrendingUp, Smartphone, Building2, Globe, BarChart3 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import type { RootStackParamList, Broker } from '../types';
-import { getBrokerToken, initiateDeposit } from '../services/broker';
+import { getBrokerToken, getMpesaPhone, depositDerivMpesa, initiateDeposit } from '../services/broker';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePayvexStore } from '../stores/payvexStore';
 import { MagicallyAlert } from '../components/ui/MagicallyAlert';
@@ -34,6 +34,9 @@ export default function DepositScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -123,12 +126,14 @@ export default function DepositScreen() {
       return;
     }
     
-    if (!amount || parseFloat(amount) < 100) {
+    const amountNum = parseFloat(amount);
+    
+    if (!amount || amountNum < 100) {
       MagicallyAlert.alert('Minimum Amount', 'Minimum deposit amount is KES 100');
       return;
     }
     
-    if (parseFloat(amount) > 150000) {
+    if (amountNum > 150000) {
       MagicallyAlert.alert('Maximum Amount', 'Maximum deposit amount is KES 150,000');
       return;
     }
@@ -139,8 +144,9 @@ export default function DepositScreen() {
       // Determine broker type from account
       const broker: Broker = selectedAccount.accountType === 'deriv' ? 'DERIV' : 'MT5';
       
-      const token = await getBrokerToken(broker);
-      if (!token) {
+      const credentials = await getBrokerToken(broker);
+      if (!credentials) {
+        setIsProcessing(false);
         MagicallyAlert.alert(
           'Account Not Linked',
           'Please link your broker account first before making a deposit',
@@ -158,26 +164,58 @@ export default function DepositScreen() {
         );
         return;
       }
-      
-      await initiateDeposit(broker, parseFloat(amount));
-      
-      MagicallyAlert.alert(
-        'Deposit Initiated',
-        'Complete the payment via M-Pesa in your browser. Funds will be deposited directly to your broker account.',
-        [
-          {
-            text: 'Got It',
-            onPress: () => navigation.goBack(),
-            style: 'default'
-          }
-        ]
-      );
-    } catch (error) {
+
+      const mpesaPhone = await getMpesaPhone();
+      if (!mpesaPhone) {
+        setIsProcessing(false);
+        MagicallyAlert.alert('Phone Missing', 'Please set your M-Pesa phone number in Link screen');
+        return;
+      }
+
+      if (broker === 'DERIV') {
+        // AUTOMATED FLOW - Direct API call for Deriv
+        console.log('🚀 Starting automated deposit...');
+        
+        const result = await depositDerivMpesa(
+          credentials.token,
+          amountNum,
+          mpesaPhone
+        );
+
+        setIsProcessing(false);
+
+        if (result.success) {
+          setModalMessage(result.message);
+          setShowSuccessModal(true);
+        } else {
+          setModalMessage(result.message);
+          setShowErrorModal(true);
+        }
+      } else {
+        // MT5 - Open browser (old method)
+        await initiateDeposit(broker, amountNum);
+        setIsProcessing(false);
+        MagicallyAlert.alert(
+          'Browser Opened',
+          'Complete the payment via M-Pesa in your browser. Funds will be deposited directly to your broker account.'
+        );
+        navigation.goBack();
+      }
+    } catch (error: any) {
       console.error('Deposit error:', error);
-      MagicallyAlert.alert('Deposit Failed', 'Unable to initiate deposit. Please try again.');
-    } finally {
       setIsProcessing(false);
+      setModalMessage(error.message || 'Deposit failed');
+      setShowErrorModal(true);
     }
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    navigation.goBack();
+  };
+
+  const handleErrorClose = () => {
+    setShowErrorModal(false);
   };
 
   const formatAmount = (text: string) => {
@@ -756,7 +794,9 @@ export default function DepositScreen() {
                 Secure Payment
               </Text>
               <Text style={{ fontSize: 13, color: theme.textMuted, lineHeight: 18 }}>
-                Your payment is processed securely via M-Pesa. Funds are deposited directly to your selected broker account within minutes.
+                {selectedAccount?.accountType === 'deriv' 
+                  ? 'STK push will be sent directly to your phone. Enter your M-Pesa PIN to complete payment.'
+                  : 'Your payment is processed securely via M-Pesa. Funds are deposited directly to your selected broker account within minutes.'}
               </Text>
             </View>
           </View>
@@ -799,13 +839,13 @@ export default function DepositScreen() {
                 <>
                   <ActivityIndicator size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
                   <Text style={{ fontSize: 16, fontWeight: '600', color: '#FFFFFF' }}>
-                    Processing...
+                    Sending STK Push...
                   </Text>
                 </>
               ) : (
                 <>
                   <Text style={{ fontSize: 16, fontWeight: '600', color: '#FFFFFF', marginRight: 8 }}>
-                    Continue to M-Pesa Payment
+                    {selectedAccount?.accountType === 'deriv' ? 'Send STK Push' : 'Continue to M-Pesa Payment'}
                   </Text>
                   <ArrowRight size={20} color="#FFFFFF" strokeWidth={2.5} />
                 </>
@@ -866,8 +906,8 @@ export default function DepositScreen() {
               </Text>
             </View>
             <Text style={{ fontSize: 13, color: '#0C4A6E', lineHeight: 18 }}>
-              • Only Deriv and MT5 accounts support direct deposits{'\n'}
-              • M-Pesa deposits are processed instantly{'\n'}
+              • Deriv: Direct STK push to your phone (instant){'\n'}
+              • MT5: Browser-based M-Pesa payment{'\n'}
               • Funds are available for trading immediately after deposit{'\n'}
               • Contact support if you encounter any issues
             </Text>
@@ -877,6 +917,180 @@ export default function DepositScreen() {
 
       {/* Account Dropdown Modal */}
       <AccountDropdown />
+
+      {/* SUCCESS MODAL */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20,
+        }}>
+          <View style={{
+            backgroundColor: theme.cardBackground,
+            borderRadius: 24,
+            padding: 32,
+            width: '100%',
+            maxWidth: 400,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 12,
+            elevation: 8,
+          }}>
+            <View style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: '#10B98115',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 20,
+            }}>
+              <Text style={{ fontSize: 48 }}>✅</Text>
+            </View>
+            
+            <Text style={{ 
+              fontSize: 24, 
+              fontWeight: '700', 
+              color: theme.text,
+              marginBottom: 12,
+              textAlign: 'center'
+            }}>
+              STK Push Sent!
+            </Text>
+            
+            <Text style={{ 
+              fontSize: 16, 
+              color: theme.textMuted,
+              textAlign: 'center',
+              marginBottom: 8,
+              lineHeight: 22
+            }}>
+              {modalMessage}
+            </Text>
+            
+            <Text style={{ 
+              fontSize: 14, 
+              color: theme.textLight,
+              textAlign: 'center',
+              marginBottom: 24,
+              lineHeight: 20
+            }}>
+              Check your phone and enter your M-Pesa PIN to complete the payment.
+            </Text>
+            
+            <Pressable
+              onPress={handleSuccessClose}
+              style={({ pressed }) => ({
+                backgroundColor: '#10B981',
+                paddingVertical: 16,
+                paddingHorizontal: 48,
+                borderRadius: 16,
+                width: '100%',
+                alignItems: 'center',
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              })}
+            >
+              <Text style={{ 
+                color: 'white', 
+                fontWeight: '700', 
+                fontSize: 16 
+              }}>
+                Got It
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ERROR MODAL */}
+      <Modal
+        visible={showErrorModal}
+        transparent
+        animationType="fade"
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20,
+        }}>
+          <View style={{
+            backgroundColor: theme.cardBackground,
+            borderRadius: 24,
+            padding: 32,
+            width: '100%',
+            maxWidth: 400,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 12,
+            elevation: 8,
+          }}>
+            <View style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: '#EF444415',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 20,
+            }}>
+              <Text style={{ fontSize: 48 }}>❌</Text>
+            </View>
+            
+            <Text style={{ 
+              fontSize: 24, 
+              fontWeight: '700', 
+              color: theme.text,
+              marginBottom: 12,
+              textAlign: 'center'
+            }}>
+              Deposit Failed
+            </Text>
+            
+            <Text style={{ 
+              fontSize: 16, 
+              color: theme.textMuted,
+              textAlign: 'center',
+              marginBottom: 24,
+              lineHeight: 22
+            }}>
+              {modalMessage}
+            </Text>
+            
+            <Pressable
+              onPress={handleErrorClose}
+              style={({ pressed }) => ({
+                backgroundColor: '#EF4444',
+                paddingVertical: 16,
+                paddingHorizontal: 48,
+                borderRadius: 16,
+                width: '100%',
+                alignItems: 'center',
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              })}
+            >
+              <Text style={{ 
+                color: 'white', 
+                fontWeight: '700', 
+                fontSize: 16 
+              }}>
+                Try Again
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

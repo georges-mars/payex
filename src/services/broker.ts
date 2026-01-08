@@ -342,5 +342,92 @@ export async function initiateDeposit(broker: Broker, amount?: number): Promise<
   await WebBrowser.openBrowserAsync(url);
   console.log('Deposit link opened - user completes payment via broker');
 }
+export async function depositDerivMpesa(
+  token: string,
+  amountKES: number,
+  phone: string
+): Promise<{ success: boolean; message: string }> {
+  return new Promise((resolve) => {
+    const ws = new WebSocket(DERIV_WS_URL);
+    let resolved = false;
+    let authorized = false;
 
+    const cleanup = () => {
+      if (!resolved) {
+        resolved = true;
+        ws.close();
+      }
+    };
+
+    ws.onopen = () => {
+      console.log('🔌 WebSocket connected - authorizing...');
+      ws.send(JSON.stringify({ authorize: token }));
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log('📨 Received:', data);
+
+      // Step 1: Authorization response
+      if (data.authorize && !data.error && !authorized) {
+        authorized = true;
+        console.log('✅ Authorized! Initiating M-Pesa deposit...');
+
+        // Convert KES to USD (approximate rate: 1 USD = 130 KES)
+        const amountUSD = (amountKES / 130).toFixed(2);
+
+        // Step 2: Request deposit via M-Pesa
+        ws.send(
+          JSON.stringify({
+            cashier: 'deposit',
+            provider: 'mpesa',
+            type: 'api',
+            verification_code: token,
+            amount: amountUSD,
+            phone_number: phone,
+          })
+        );
+      }
+
+      // Step 3: Handle cashier response
+      if (data.cashier || data.error) {
+        cleanup();
+
+        if (data.error) {
+          console.error('❌ Deposit error:', data.error);
+          resolve({ 
+            success: false, 
+            message: data.error.message || 'Deposit failed' 
+          });
+        } else if (data.cashier) {
+          console.log('✅ Deposit initiated:', data.cashier);
+          resolve({ 
+            success: true, 
+            message: 'STK push sent! Check your phone to complete payment.' 
+          });
+        }
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('❌ WebSocket error:', error);
+      cleanup();
+      resolve({ 
+        success: false, 
+        message: 'Connection failed. Please check your internet.' 
+      });
+    };
+
+    // Timeout after 15 seconds
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup();
+        resolve({ 
+          success: false, 
+          message: 'Request timeout. Please try again.' 
+        });
+      }
+    }, 15000);
+  });
+}
 export { Broker };
