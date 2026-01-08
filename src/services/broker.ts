@@ -1,4 +1,4 @@
-// src/services/broker.ts
+// src/services/broker.ts - COMPLETE REPLACEMENT
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Broker } from '../types';
@@ -15,7 +15,7 @@ const TOKEN_KEYS = {
 } as const;
 
 // ============================================
-// STORAGE - Using AsyncStorage
+// STORAGE - Using AsyncStorage (RELIABLE)
 // ============================================
 
 export async function saveBrokerToken(
@@ -31,6 +31,7 @@ export async function saveBrokerToken(
       await AsyncStorage.setItem(TOKEN_KEYS.MT5, data);
     }
   } catch (error) {
+    console.error('Failed to save credentials:', error);
     throw new Error('Failed to save credentials');
   }
 }
@@ -49,7 +50,8 @@ export async function getBrokerToken(
       const parsed = JSON.parse(data);
       return { token: parsed.token, accountId: parsed.accountId };
     }
-  } catch {
+  } catch (error) {
+    console.error('Failed to get credentials:', error);
     return null;
   }
 }
@@ -60,15 +62,26 @@ export async function setMpesaPhone(phone: string): Promise<boolean> {
     console.error('Invalid Kenyan phone format. Use 254XXXXXXXXX');
     return false;
   }
-  await AsyncStorage.setItem(TOKEN_KEYS.PHONE, phone);
-  return true;
+  
+  try {
+    await AsyncStorage.setItem(TOKEN_KEYS.PHONE, phone);
+    console.log('Phone saved successfully:', phone);
+    return true;
+  } catch (error) {
+    console.error('Failed to save phone:', error);
+    return false;
+  }
 }
 
 export async function getMpesaPhone(): Promise<string | null> {
-  return await AsyncStorage.getItem(TOKEN_KEYS.PHONE);
+  try {
+    return await AsyncStorage.getItem(TOKEN_KEYS.PHONE);
+  } catch (error) {
+    console.error('Failed to get phone:', error);
+    return null;
+  }
 }
 
-// ... rest of your code remains exactly the same
 // ============================================
 // DERIV API (WebSocket - Direct)
 // ============================================

@@ -31,7 +31,7 @@ export default function LinkScreen() {
     const valid = await setMpesaPhone(phone);
     if (valid) {
       Alert.alert('Saved!', 'M-Pesa phone set for withdrawals');
-      navigation.navigate('Home');
+      navigation.navigate('MainTabs');
     } else {
       Alert.alert('Error', 'Invalid phone: Use 2547XXXXXXXX format');
     }

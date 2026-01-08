@@ -7,23 +7,6 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Logo } from '../components/ui/Logo';
 import { Mail, Shield, Lock } from 'lucide-react-native';
 import magically from 'magically-sdk';
-import { useNavigation } from '@react-navigation/native'; // ADD THIS
-import { NativeStackNavigationProp } from '@react-navigation/native-stack'; // ADD THIS
-
-// Define your navigation types
-type RootStackParamList = {
-  Login: undefined;
-  MainTabs: undefined;
-  Feedback: undefined;
-  Profile: undefined;
-  SendMoney: undefined;
-  LinkAccount: undefined;
-  Link: undefined;
-  Deposit: undefined;
-  Withdraw: undefined;
-};
-
-type LoginScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,7 +25,6 @@ export default function LoginScreen() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
-  const navigation = useNavigation<LoginScreenNavigationProp>(); // ADD TYPE
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -100,8 +82,6 @@ export default function LoginScreen() {
     setLoadingProvider(provider);
     try {
       await magically.auth.triggerAuthenticationFlow(provider);
-      // ✅ FIXED: Use proper typing
-      navigation.navigate('MainTabs' as never);
     } catch (error) {
       console.error('Login failed:', error);
     } finally {
@@ -109,8 +89,6 @@ export default function LoginScreen() {
       setLoadingProvider(null);
     }
   };
-
-  // ... rest of your code remains the same
 
   const shimmerTranslate = shimmerAnim.interpolate({
     inputRange: [0, 1],
