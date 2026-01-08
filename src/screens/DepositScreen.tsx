@@ -3,14 +3,15 @@ import { View, Text, TextInput, ScrollView, Animated, Pressable, Modal, FlatList
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ArrowRight, Wallet, AlertCircle, CreditCard, Shield, Search, ArrowLeft, TrendingUp, Smartphone, Building2, Globe, BarChart3 } from 'lucide-react-native';
+import { ArrowRight, Wallet, AlertCircle, CreditCard, Shield, Search, ArrowLeft, Phone, TrendingUp, BarChart3, ChevronDown } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import type { RootStackParamList, Broker } from '../types';
-import { getBrokerToken, getMpesaPhone, depositDerivMpesa, initiateDeposit } from '../services/broker';
+import { getBrokerToken, depositDerivMpesa, initiateDeposit } from '../services/broker';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePayvexStore } from '../stores/payvexStore';
 import { MagicallyAlert } from '../components/ui/MagicallyAlert';
 import { Logo } from '../components/ui';
+import { LinkedAccounts } from '../magically/entities/LinkedAccount';
 
 type DepositScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -24,19 +25,35 @@ type LinkedAccount = {
   isDefault?: boolean;
 };
 
+type MpesaAccount = {
+  _id: string;
+  accountName: string;
+  accountType: string;
+  accountNumber: string; // This will be the phone number
+  balance: number;
+  currency: string;
+  isDefault?: boolean;
+  status: string;
+};
+
 export default function DepositScreen() {
   const navigation = useNavigation<DepositScreenNavigationProp>();
   const theme = useTheme();
   const { accounts } = usePayvexStore();
   
   const [selectedAccount, setSelectedAccount] = useState<LinkedAccount | null>(null);
+  const [selectedMpesaAccount, setSelectedMpesaAccount] = useState<MpesaAccount | null>(null);
+  const [mpesaAccounts, setMpesaAccounts] = useState<MpesaAccount[]>([]);
   const [amount, setAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [showMpesaDropdown, setShowMpesaDropdown] = useState(false);
+  const [accountSearchQuery, setAccountSearchQuery] = useState('');
+  const [mpesaSearchQuery, setMpesaSearchQuery] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
+  const [isLoadingMpesaAccounts, setIsLoadingMpesaAccounts] = useState(false);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -55,17 +72,53 @@ export default function DepositScreen() {
       }),
     ]).start();
     
+    loadMpesaAccounts();
+    
     // Auto-select first broker account (Deriv or MT5)
     const brokerAccounts = accounts.filter(acc => 
       acc.accountType === 'deriv' || acc.accountType === 'mt5'
     );
     
     if (brokerAccounts.length > 0) {
-      // Try to find default account first
       const defaultAccount = brokerAccounts.find(acc => acc.isDefault) || brokerAccounts[0];
       setSelectedAccount(defaultAccount);
     }
   }, [accounts]);
+
+  const loadMpesaAccounts = async () => {
+    try {
+      setIsLoadingMpesaAccounts(true);
+      // Fetch all M-Pesa accounts from the database
+      const result = await LinkedAccounts.query(
+        { accountType: 'mpesa' }, 
+        { sort: { linkedDate: -1 } }
+      );
+      
+      const mpesaAccountsData = result.data.map(acc => ({
+        _id: acc._id,
+        accountName: acc.accountName,
+        accountType: acc.accountType,
+        accountNumber: acc.accountNumber, // Phone number
+        balance: acc.balance,
+        currency: acc.currency,
+        isDefault: acc.isDefault,
+        status: acc.status,
+      }));
+      
+      setMpesaAccounts(mpesaAccountsData);
+      
+      // Auto-select default M-Pesa account
+      if (mpesaAccountsData.length > 0) {
+        const defaultMpesa = mpesaAccountsData.find(acc => acc.isDefault) || mpesaAccountsData[0];
+        setSelectedMpesaAccount(defaultMpesa);
+      }
+    } catch (error) {
+      console.error('Error loading M-Pesa accounts:', error);
+      MagicallyAlert.alert('Error', 'Failed to load your M-Pesa accounts');
+    } finally {
+      setIsLoadingMpesaAccounts(false);
+    }
+  };
 
   // Filter broker accounts (Deriv/MT5 only for deposits)
   const brokerAccounts = accounts.filter(acc => 
@@ -73,19 +126,22 @@ export default function DepositScreen() {
   );
 
   const filteredAccounts = brokerAccounts.filter(account =>
-    account.accountName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    account.accountType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    account.currency.toLowerCase().includes(searchQuery.toLowerCase())
+    account.accountName.toLowerCase().includes(accountSearchQuery.toLowerCase()) ||
+    account.accountType.toLowerCase().includes(accountSearchQuery.toLowerCase()) ||
+    account.currency.toLowerCase().includes(accountSearchQuery.toLowerCase())
+  );
+
+  const filteredMpesaAccounts = mpesaAccounts.filter(account =>
+    account.accountName.toLowerCase().includes(mpesaSearchQuery.toLowerCase()) ||
+    account.accountNumber.toLowerCase().includes(mpesaSearchQuery.toLowerCase())
   );
 
   const getAccountIcon = (type: string) => {
     switch (type) {
       case 'deriv': return TrendingUp;
       case 'mt5': return BarChart3;
-      case 'mpesa': return Smartphone;
-      case 'bank': return Building2;
-      case 'binance': return Globe;
-      default: return Wallet;
+      case 'mpesa': return Phone;
+      default: return CreditCard;
     }
   };
 
@@ -94,8 +150,6 @@ export default function DepositScreen() {
       case 'deriv': return '#FF6B35';
       case 'mt5': return '#00B894';
       case 'mpesa': return '#00D4FF';
-      case 'bank': return theme.primary;
-      case 'binance': return '#F0B90B';
       default: return theme.primary;
     }
   };
@@ -105,8 +159,6 @@ export default function DepositScreen() {
       case 'deriv': return 'Deriv Trading';
       case 'mt5': return 'MetaTrader 5';
       case 'mpesa': return 'M-Pesa';
-      case 'bank': return 'Bank Account';
-      case 'binance': return 'Binance Exchange';
       default: return 'Account';
     }
   };
@@ -115,7 +167,23 @@ export default function DepositScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedAccount(account);
     setShowAccountDropdown(false);
-    setSearchQuery('');
+    setAccountSearchQuery('');
+  };
+
+  const handleSelectMpesaAccount = (account: MpesaAccount) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedMpesaAccount(account);
+    setShowMpesaDropdown(false);
+    setMpesaSearchQuery('');
+  };
+
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone) return '';
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('254')) {
+      return `+254 ${cleaned.substring(3, 6)} ${cleaned.substring(6, 9)} ${cleaned.substring(9)}`;
+    }
+    return phone;
   };
 
   const handleDeposit = async () => {
@@ -123,6 +191,11 @@ export default function DepositScreen() {
     
     if (!selectedAccount) {
       MagicallyAlert.alert('No Account Selected', 'Please select a broker account to deposit to');
+      return;
+    }
+    
+    if (!selectedMpesaAccount) {
+      MagicallyAlert.alert('No M-Pesa Account Selected', 'Please select an M-Pesa account to use for payment');
       return;
     }
     
@@ -165,13 +238,6 @@ export default function DepositScreen() {
         return;
       }
 
-      const mpesaPhone = await getMpesaPhone();
-      if (!mpesaPhone) {
-        setIsProcessing(false);
-        MagicallyAlert.alert('Phone Missing', 'Please set your M-Pesa phone number in Link screen');
-        return;
-      }
-
       if (broker === 'DERIV') {
         // AUTOMATED FLOW - Direct API call for Deriv
         console.log('🚀 Starting automated deposit...');
@@ -179,7 +245,7 @@ export default function DepositScreen() {
         const result = await depositDerivMpesa(
           credentials.token,
           amountNum,
-          mpesaPhone
+          selectedMpesaAccount.accountNumber // Use selected M-Pesa phone number
         );
 
         setIsProcessing(false);
@@ -271,8 +337,8 @@ export default function DepositScreen() {
             }}>
               <Search size={20} color={theme.textMuted} />
               <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
+                value={accountSearchQuery}
+                onChangeText={setAccountSearchQuery}
                 placeholder="Search broker accounts..."
                 placeholderTextColor={theme.textLight}
                 style={{
@@ -365,9 +431,9 @@ export default function DepositScreen() {
                 <View style={{ padding: 30, alignItems: 'center' }}>
                   <CreditCard size={48} color={theme.textMuted} />
                   <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 12, fontSize: 15 }}>
-                    {searchQuery ? 'No broker accounts found' : 'No broker accounts available'}
+                    {accountSearchQuery ? 'No broker accounts found' : 'No broker accounts available'}
                   </Text>
-                  {!searchQuery && (
+                  {!accountSearchQuery && (
                     <>
                       <Text style={{ color: theme.textLight, textAlign: 'center', marginTop: 6, fontSize: 13 }}>
                         Link a Deriv or MT5 account to deposit funds
@@ -416,8 +482,218 @@ export default function DepositScreen() {
     </Modal>
   );
 
-  // Quick account selection
-  const quickAccounts = brokerAccounts.slice(0, 4);
+  const MpesaDropdown = () => (
+    <Modal
+      visible={showMpesaDropdown}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowMpesaDropdown(false)}
+    >
+      <Pressable
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+        onPress={() => setShowMpesaDropdown(false)}
+      >
+        <Pressable
+          style={{
+            width: '90%',
+            backgroundColor: theme.cardBackground,
+            borderRadius: 20,
+            maxHeight: '70%',
+            overflow: 'hidden',
+            borderWidth: 1,
+            borderColor: theme.border,
+          }}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={{ padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 16 }}>
+              Select M-Pesa Account
+            </Text>
+            
+            {/* Search Bar */}
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: theme.inputBackground,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              marginBottom: 16,
+            }}>
+              <Search size={20} color={theme.textMuted} />
+              <TextInput
+                value={mpesaSearchQuery}
+                onChangeText={setMpesaSearchQuery}
+                placeholder="Search M-Pesa accounts..."
+                placeholderTextColor={theme.textLight}
+                style={{
+                  flex: 1,
+                  padding: 14,
+                  fontSize: 16,
+                  color: theme.text,
+                  marginLeft: 8,
+                }}
+                autoFocus
+              />
+            </View>
+            
+            {/* M-Pesa Accounts Count */}
+            <Text style={{ fontSize: 13, color: theme.textMuted, marginBottom: 12 }}>
+              {filteredMpesaAccounts.length} M-Pesa account{filteredMpesaAccounts.length !== 1 ? 's' : ''} available
+            </Text>
+            
+            {/* M-Pesa Accounts List */}
+            <FlatList
+              data={filteredMpesaAccounts}
+              keyExtractor={(item) => item._id}
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: 350 }}
+              renderItem={({ item: account }) => {
+                const IconComponent = Phone;
+                const iconColor = '#00D4FF';
+                const isSelected = selectedMpesaAccount?._id === account._id;
+
+                return (
+                  <Pressable
+                    onPress={() => handleSelectMpesaAccount(account)}
+                    style={({ pressed }) => ({
+                      backgroundColor: pressed ? theme.muted : 'transparent',
+                      padding: 16,
+                      borderRadius: 12,
+                      marginBottom: 8,
+                      borderWidth: 2,
+                      borderColor: isSelected ? theme.primary : theme.borderLight,
+                    })}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 12,
+                          backgroundColor: `${iconColor}15`,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginRight: 12,
+                        }}
+                      >
+                        <IconComponent size={24} color={iconColor} strokeWidth={2} />
+                      </View>
+                      
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 4 }}>
+                          {account.accountName}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <Text style={{ fontSize: 12, color: theme.textMuted, marginRight: 8 }}>
+                            {formatPhoneNumber(account.accountNumber)}
+                          </Text>
+                          {account.isDefault && (
+                            <View style={{
+                              backgroundColor: '#10B98120',
+                              paddingHorizontal: 6,
+                              paddingVertical: 2,
+                              borderRadius: 4,
+                              marginRight: 6,
+                            }}>
+                              <Text style={{ fontSize: 10, color: '#10B981', fontWeight: '600' }}>
+                                Default
+                              </Text>
+                            </View>
+                          )}
+                          <View style={{
+                            backgroundColor: account.status === 'active' ? '#10B98120' : '#F59E0B20',
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 4,
+                          }}>
+                            <Text style={{ 
+                              fontSize: 10, 
+                              color: account.status === 'active' ? '#10B981' : '#F59E0B', 
+                              fontWeight: '600' 
+                            }}>
+                              {account.status}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      
+                      {isSelected && (
+                        <View
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 12,
+                            backgroundColor: theme.primary,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Text style={{ color: theme.primaryForeground, fontSize: 16, fontWeight: '700' }}>✓</Text>
+                        </View>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              }}
+              ListEmptyComponent={
+                <View style={{ padding: 30, alignItems: 'center' }}>
+                  <Phone size={48} color={theme.textMuted} />
+                  <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 12, fontSize: 15 }}>
+                    {mpesaSearchQuery ? 'No M-Pesa accounts found' : 'No M-Pesa accounts available'}
+                  </Text>
+                  {!mpesaSearchQuery && (
+                    <>
+                      <Text style={{ color: theme.textLight, textAlign: 'center', marginTop: 6, fontSize: 13 }}>
+                        Add your M-Pesa accounts to make payments
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          setShowMpesaDropdown(false);
+                          navigation.navigate('LinkAccount');
+                        }}
+                        style={({ pressed }) => ({
+                          marginTop: 16,
+                          paddingHorizontal: 20,
+                          paddingVertical: 12,
+                          backgroundColor: theme.primary,
+                          borderRadius: 12,
+                          transform: [{ scale: pressed ? 0.98 : 1 }],
+                        })}
+                      >
+                        <Text style={{ color: theme.primaryForeground, fontWeight: '600' }}>
+                          Add M-Pesa Account
+                        </Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
+              }
+            />
+          </View>
+          
+          {/* Close Button */}
+          <Pressable
+            onPress={() => setShowMpesaDropdown(false)}
+            style={({ pressed }) => ({
+              padding: 16,
+              borderTopWidth: 1,
+              borderTopColor: theme.border,
+              backgroundColor: pressed ? theme.muted : theme.cardBackground,
+            })}
+          >
+            <Text style={{ color: theme.textMuted, fontSize: 16, fontWeight: '600', textAlign: 'center' }}>
+              Cancel
+            </Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -467,7 +743,7 @@ export default function DepositScreen() {
             padding: 24,
           }}
         >
-          {/* Account Selection Card */}
+          {/* Broker Account Selection Card */}
           <LinearGradient
             colors={['#0A3B7F15', '#0D4A9F08']}
             start={{ x: 0, y: 0 }}
@@ -521,7 +797,7 @@ export default function DepositScreen() {
                   Link a Deriv or MT5 account to deposit funds
                 </Text>
                 <Pressable
-                  onPress={() => navigation.navigate('Link')}
+                  onPress={() => navigation.navigate('LinkAccount')}
                   style={({ pressed }) => ({
                     marginTop: 16,
                     paddingHorizontal: 20,
@@ -537,139 +813,223 @@ export default function DepositScreen() {
                 </Pressable>
               </View>
             ) : (
-              <>
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowAccountDropdown(true);
-                  }}
-                  style={({ pressed }) => ({
-                    backgroundColor: theme.inputBackground,
-                    borderRadius: 14,
-                    padding: 16,
-                    borderWidth: 1,
-                    borderColor: theme.border,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    transform: [{ scale: pressed ? 0.98 : 1 }],
-                    marginBottom: 12,
-                  })}
-                >
-                  {selectedAccount ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                      <View
-                        style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 12,
-                          backgroundColor: `${getAccountColor(selectedAccount.accountType)}15`,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginRight: 12,
-                        }}
-                      >
-                        {React.createElement(getAccountIcon(selectedAccount.accountType), {
-                          size: 24,
-                          color: getAccountColor(selectedAccount.accountType),
-                          strokeWidth: 2
-                        })}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 2 }}>
-                          {selectedAccount.accountName}
-                        </Text>
-                        <Text style={{ fontSize: 13, color: theme.textMuted }}>
-                          {getAccountTypeLabel(selectedAccount.accountType)} • {selectedAccount.currency} {selectedAccount.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </Text>
-                      </View>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowAccountDropdown(true);
+                }}
+                style={({ pressed }) => ({
+                  backgroundColor: theme.inputBackground,
+                  borderRadius: 14,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                })}
+              >
+                {selectedAccount ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        backgroundColor: `${getAccountColor(selectedAccount.accountType)}15`,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: 12,
+                      }}
+                    >
+                      {React.createElement(getAccountIcon(selectedAccount.accountType), {
+                        size: 24,
+                        color: getAccountColor(selectedAccount.accountType),
+                        strokeWidth: 2
+                      })}
                     </View>
-                  ) : (
-                    <Text style={{ fontSize: 16, color: theme.textLight, flex: 1 }}>
-                      Select broker account...
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 2 }}>
+                        {selectedAccount.accountName}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: theme.textMuted }}>
+                        {getAccountTypeLabel(selectedAccount.accountType)} • {selectedAccount.currency} {selectedAccount.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 16, color: theme.textLight, flex: 1 }}>
+                    Select broker account...
+                  </Text>
+                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {selectedAccount && (
+                    <Text style={{ fontSize: 13, color: theme.textMuted, marginRight: 12 }}>
+                      {brokerAccounts.length} available
                     </Text>
                   )}
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {selectedAccount && (
-                      <Text style={{ fontSize: 13, color: theme.textMuted, marginRight: 12 }}>
-                        {brokerAccounts.length} available
+                  <View style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    backgroundColor: theme.muted,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <ChevronDown size={16} color={theme.textMuted} />
+                  </View>
+                </View>
+              </Pressable>
+            )}
+          </LinearGradient>
+
+          {/* M-Pesa Account Selection Card */}
+          <LinearGradient
+            colors={['#00D4FF15', '#00B4CC08']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 24,
+              borderWidth: 1,
+              borderColor: '#00D4FF25',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <View style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                backgroundColor: '#00D4FF20',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 12,
+              }}>
+                <Phone size={22} color="#00D4FF" strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 2 }}>
+                  Pay With M-Pesa Account *
+                </Text>
+                <Text style={{ fontSize: 13, color: theme.textMuted }}>
+                  Choose which M-Pesa account to use for payment
+                </Text>
+              </View>
+            </View>
+
+            {isLoadingMpesaAccounts ? (
+              <View style={{
+                backgroundColor: theme.inputBackground,
+                borderRadius: 14,
+                padding: 20,
+                alignItems: 'center',
+              }}>
+                <ActivityIndicator size={24} color="#00D4FF" />
+                <Text style={{ fontSize: 14, color: theme.textMuted, marginTop: 12 }}>
+                  Loading M-Pesa accounts...
+                </Text>
+              </View>
+            ) : mpesaAccounts.length === 0 ? (
+              <View style={{
+                backgroundColor: theme.cardBackground,
+                borderRadius: 14,
+                padding: 24,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: theme.border,
+                borderStyle: 'dashed',
+                marginTop: 8,
+              }}>
+                <Phone size={48} color={theme.textMuted} />
+                <Text style={{ color: theme.textMuted, textAlign: 'center', marginTop: 12, fontSize: 15 }}>
+                  No M-Pesa accounts available
+                </Text>
+                <Text style={{ color: theme.textLight, textAlign: 'center', marginTop: 6, fontSize: 13 }}>
+                  Add your M-Pesa accounts to make payments
+                </Text>
+                <Pressable
+                  onPress={() => navigation.navigate('LinkAccount')}
+                  style={({ pressed }) => ({
+                    marginTop: 16,
+                    paddingHorizontal: 20,
+                    paddingVertical: 12,
+                    backgroundColor: theme.primary,
+                    borderRadius: 12,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  })}
+                >
+                  <Text style={{ color: theme.primaryForeground, fontWeight: '600' }}>
+                    Add M-Pesa Account
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowMpesaDropdown(true);
+                }}
+                style={({ pressed }) => ({
+                  backgroundColor: theme.inputBackground,
+                  borderRadius: 14,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                })}
+              >
+                {selectedMpesaAccount ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        backgroundColor: '#00D4FF15',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: 12,
+                      }}
+                    >
+                      <Phone size={24} color="#00D4FF" strokeWidth={2} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 2 }}>
+                        {selectedMpesaAccount.accountName}
                       </Text>
-                    )}
-                    <View style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      backgroundColor: theme.muted,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: theme.textMuted }}>▼</Text>
+                      <Text style={{ fontSize: 13, color: theme.textMuted }}>
+                        {formatPhoneNumber(selectedMpesaAccount.accountNumber)} • Balance: {selectedMpesaAccount.currency} {selectedMpesaAccount.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </Text>
                     </View>
                   </View>
-                </Pressable>
-                
-                {/* Quick Account Selection */}
-                {quickAccounts.length > 0 && (
-                  <View>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
-                      QUICK SELECT
-                    </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        {quickAccounts.map((account) => {
-                          const IconComponent = getAccountIcon(account.accountType);
-                          const iconColor = getAccountColor(account.accountType);
-                          
-                          return (
-                            <Pressable
-                              key={account._id}
-                              onPress={() => handleSelectAccount(account)}
-                              style={({ pressed }) => ({
-                                backgroundColor: pressed ? theme.muted : theme.cardBackground,
-                                padding: 12,
-                                borderRadius: 12,
-                                borderWidth: 1,
-                                borderColor: selectedAccount?._id === account._id ? theme.primary : theme.border,
-                                alignItems: 'center',
-                                minWidth: 100,
-                                transform: [{ scale: pressed ? 0.95 : 1 }],
-                              })}
-                            >
-                              <View
-                                style={{
-                                  width: 36,
-                                  height: 36,
-                                  borderRadius: 9,
-                                  backgroundColor: `${iconColor}15`,
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  marginBottom: 8,
-                                }}
-                              >
-                                <IconComponent size={18} color={iconColor} strokeWidth={2} />
-                              </View>
-                              <Text 
-                                style={{ 
-                                  fontSize: 11, 
-                                  color: theme.text,
-                                  textAlign: 'center',
-                                  fontWeight: selectedAccount?._id === account._id ? '600' : '400'
-                                }}
-                                numberOfLines={1}
-                              >
-                                {account.accountName}
-                              </Text>
-                              <Text style={{ fontSize: 10, color: theme.textMuted, marginTop: 4 }}>
-                                {account.currency}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </ScrollView>
-                  </View>
+                ) : (
+                  <Text style={{ fontSize: 16, color: theme.textLight, flex: 1 }}>
+                    Select M-Pesa account...
+                  </Text>
                 )}
-              </>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {selectedMpesaAccount && (
+                    <Text style={{ fontSize: 13, color: theme.textMuted, marginRight: 12 }}>
+                      {mpesaAccounts.length} available
+                    </Text>
+                  )}
+                  <View style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    backgroundColor: theme.muted,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <ChevronDown size={16} color={theme.textMuted} />
+                  </View>
+                </View>
+              </Pressable>
             )}
           </LinearGradient>
 
@@ -795,7 +1155,7 @@ export default function DepositScreen() {
               </Text>
               <Text style={{ fontSize: 13, color: theme.textMuted, lineHeight: 18 }}>
                 {selectedAccount?.accountType === 'deriv' 
-                  ? 'STK push will be sent directly to your phone. Enter your M-Pesa PIN to complete payment.'
+                  ? `STK push will be sent to ${selectedMpesaAccount ? formatPhoneNumber(selectedMpesaAccount.accountNumber) : 'your M-Pesa number'}. Enter your M-Pesa PIN to complete payment.`
                   : 'Your payment is processed securely via M-Pesa. Funds are deposited directly to your selected broker account within minutes.'}
               </Text>
             </View>
@@ -805,9 +1165,9 @@ export default function DepositScreen() {
           <View style={{ gap: 12 }}>
             <Pressable
               onPress={handleDeposit}
-              disabled={isProcessing || !amount || parseFloat(amount) < 100 || !selectedAccount}
+              disabled={isProcessing || !amount || parseFloat(amount) < 100 || !selectedAccount || !selectedMpesaAccount}
               style={({ pressed }) => {
-                const isDisabled = isProcessing || !amount || parseFloat(amount) < 100 || !selectedAccount;
+                const isDisabled = isProcessing || !amount || parseFloat(amount) < 100 || !selectedAccount || !selectedMpesaAccount;
                 return {
                   backgroundColor: isDisabled ? theme.textMuted + '30' : theme.primary,
                   borderRadius: 16,
@@ -821,7 +1181,7 @@ export default function DepositScreen() {
               }}
             >
               <LinearGradient
-                colors={isProcessing || !amount || parseFloat(amount) < 100 || !selectedAccount ? 
+                colors={isProcessing || !amount || parseFloat(amount) < 100 || !selectedAccount || !selectedMpesaAccount ? 
                   ['#6B7280', '#4B5563'] : 
                   ['#0A3B7F', '#0D4A9F']}
                 start={{ x: 0, y: 0 }}
@@ -915,8 +1275,9 @@ export default function DepositScreen() {
         </Animated.View>
       </ScrollView>
 
-      {/* Account Dropdown Modal */}
+      {/* Dropdown Modals */}
       <AccountDropdown />
+      <MpesaDropdown />
 
       {/* SUCCESS MODAL */}
       <Modal
