@@ -1,4 +1,4 @@
-// src/services/broker.ts - COMPLETELY FIXED
+// src/services/broker.ts - BROWSER-BASED DEPOSIT (CORRECT APPROACH)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Broker } from '../types';
@@ -193,8 +193,19 @@ export function getDerivWithdrawUrl(amount?: number, phone?: string): string {
 }
 
 export function getDerivDepositUrl(amount?: number): string {
-  const baseUrl = 'https://app.deriv.com/cashier/deposit?method=mpesa';
-  return amount ? `${baseUrl}&amount=${amount}` : baseUrl;
+  const baseUrl = 'https://app.deriv.com/cashier/deposit';
+  const params = new URLSearchParams();
+  
+  // Add M-Pesa as the payment method
+  params.append('method', 'mpesa');
+  
+  if (amount) {
+    // Convert KES to USD (approximate rate: 1 USD = 130 KES)
+    const amountUSD = (amount / 130).toFixed(2);
+    params.append('amount', amountUSD);
+  }
+  
+  return `${baseUrl}?${params.toString()}`;
 }
 
 // ============================================
@@ -324,119 +335,38 @@ export async function initiateDeposit(broker: Broker, amount?: number): Promise<
 }
 
 // ============================================
-// FIXED: Deriv M-Pesa Deposit via Cashier API
+// DERIV M-PESA DEPOSIT - BROWSER-BASED (CORRECT APPROACH)
 // ============================================
 export async function depositDerivMpesa(
   token: string,
   amountKES: number,
   phone: string
 ): Promise<{ success: boolean; message: string }> {
-  return new Promise((resolve) => {
-    const ws = new WebSocket(DERIV_WS_URL);
-    let resolved = false;
-    let authorized = false;
-
-    const cleanup = () => {
-      if (!resolved) {
-        resolved = true;
-        ws.close();
-      }
+  console.log('🌐 Opening Deriv M-Pesa cashier in browser...');
+  
+  try {
+    // Convert KES to USD (approximate rate)
+    const amountUSD = (amountKES / 130).toFixed(2);
+    
+    // Build Deriv cashier URL with amount pre-filled
+    const url = `https://app.deriv.com/cashier/deposit?method=mpesa&amount=${amountUSD}`;
+    
+    console.log('🔗 Opening URL:', url);
+    
+    // Open Deriv's M-Pesa cashier in browser
+    await WebBrowser.openBrowserAsync(url);
+    
+    return {
+      success: true,
+      message: 'Deriv M-Pesa cashier opened. Complete the payment in your browser to deposit funds to your account.'
     };
-
-    ws.onopen = () => {
-      console.log('🔌 WebSocket connected - authorizing...');
-      ws.send(JSON.stringify({ authorize: token }));
+  } catch (error: any) {
+    console.error('❌ Failed to open browser:', error);
+    return {
+      success: false,
+      message: 'Failed to open browser: ' + error.message
     };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log('📨 Received:', data);
-
-      // Step 1: Authorization response
-      if (data.authorize && !data.error && !authorized) {
-        authorized = true;
-        console.log('✅ Authorized! Requesting cashier URL...');
-
-        // Step 2: Request cashier URL for M-Pesa deposit
-        // Note: Don't send verification_code here - already authorized
-        ws.send(
-          JSON.stringify({
-            cashier: 'deposit',
-            provider: 'doughflow'
-          })
-        );
-      }
-
-      // Step 3: Handle cashier response
-      if (data.cashier) {
-        cleanup();
-        
-        if (data.cashier.deposit) {
-          console.log('✅ Got cashier URL:', data.cashier.deposit);
-          
-          // Open the cashier URL in browser
-          WebBrowser.openBrowserAsync(data.cashier.deposit)
-            .then(() => {
-              resolve({ 
-                success: true, 
-                message: 'Redirecting to Deriv cashier. Complete your M-Pesa payment there.' 
-              });
-            })
-            .catch((error) => {
-              resolve({ 
-                success: false, 
-                message: 'Failed to open browser: ' + error.message 
-              });
-            });
-        } else {
-          resolve({ 
-            success: false, 
-            message: 'No deposit URL received from Deriv' 
-          });
-        }
-      }
-
-      // Handle errors
-      if (data.error) {
-        console.error('❌ API error:', data.error);
-        cleanup();
-        
-        let errorMessage = data.error.message || 'Deposit failed';
-        
-        // Provide helpful error messages
-        if (errorMessage.includes('InvalidToken')) {
-          errorMessage = 'Invalid Deriv token. Please re-link your account.';
-        } else if (errorMessage.includes('verification')) {
-          errorMessage = 'Please verify your email in Deriv before depositing.';
-        }
-        
-        resolve({ 
-          success: false, 
-          message: errorMessage
-        });
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('❌ WebSocket error:', error);
-      cleanup();
-      resolve({ 
-        success: false, 
-        message: 'Connection failed. Please check your internet.' 
-      });
-    };
-
-    // Timeout after 15 seconds
-    setTimeout(() => {
-      if (!resolved) {
-        cleanup();
-        resolve({ 
-          success: false, 
-          message: 'Request timeout. Please try again.' 
-        });
-      }
-    }, 15000);
-  });
+  }
 }
 
 export { Broker };
