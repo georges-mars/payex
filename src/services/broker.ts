@@ -187,73 +187,31 @@ export async function validateDerivToken(token: string): Promise<boolean> {
     }, 5000);
   });
 }
-
-export async function withdrawDeriv(
-  token: string,
-  amount: number,
-  phone: string
-): Promise<{ success: boolean; message: string }> {
-  return new Promise((resolve) => {
-    const ws = new WebSocket(DERIV_WS_URL);
-    let resolved = false;
-
-    const cleanup = () => {
-      if (!resolved) {
-        resolved = true;
-        ws.close();
-      }
-    };
-
-    ws.onopen = () => {
-      // First authorize
-      ws.send(JSON.stringify({ authorize: token }));
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      // After authorization, send cashier request
-      if (data.authorize && !data.error) {
-        ws.send(
-          JSON.stringify({
-            cashier: 'withdraw',
-            provider: 'mpesa',
-            type: 'api',
-            verification_code: token,
-            amount: amount.toString(),
-            phone_number: phone,
-          })
-        );
-      }
-
-      // Handle cashier response
-      if (data.cashier || data.error) {
-        cleanup();
-
-        if (data.error) {
-          resolve({ success: false, message: data.error.message });
-        } else {
-          resolve({ success: true, message: 'Withdrawal initiated successfully' });
-        }
-      }
-    };
-
-    ws.onerror = () => {
-      cleanup();
-      resolve({ success: false, message: 'Connection failed' });
-    };
-
-    setTimeout(() => {
-      cleanup();
-      resolve({ success: false, message: 'Request timeout' });
-    }, 10000);
-  });
+export function getDerivWithdrawUrl(amount?: number, phone?: string): string {
+  let url = 'https://app.deriv.com/cashier/withdrawal';
+  const params = new URLSearchParams();
+  
+  if (amount) {
+    params.append('amount', amount.toString());
+  }
+  
+  if (phone) {
+    params.append('phone_number', phone);
+  }
+  
+  // Add M-Pesa as preferred method
+  params.append('method', 'mpesa');
+  
+  const queryString = params.toString();
+  return queryString ? `${url}?${queryString}` : url;
 }
 
 export function getDerivDepositUrl(amount?: number): string {
   const baseUrl = 'https://app.deriv.com/cashier/deposit?method=mpesa';
   return amount ? `${baseUrl}&amount=${amount}` : baseUrl;
 }
+
+
 
 // ============================================
 // MT5 API (via Cloudflare Worker Backend)
@@ -345,6 +303,7 @@ export async function linkBroker(
   }
 }
 
+
 export async function withdraw(
   broker: Broker,
   amount: number
@@ -356,10 +315,16 @@ export async function withdraw(
   if (!mpesa) throw new Error('Set M-Pesa phone number first');
 
   if (broker === 'DERIV') {
-    const result = await withdrawDeriv(credentials.token, amount, mpesa);
-    if (!result.success) throw new Error(result.message);
-    return { id: 'N/A', status: result.message };
+    // DERIV: Open cashier in browser for user to complete withdrawal
+    const url = getDerivWithdrawUrl(amount, mpesa);
+    await WebBrowser.openBrowserAsync(url);
+    
+    return { 
+      id: 'DERIV_CASHIER', 
+      status: 'Withdrawal page opened - Complete the transaction in Deriv\'s cashier' 
+    };
   } else {
+    // MT5: Use backend API
     if (!credentials.accountId) throw new Error('MT5 account ID missing');
     const result = await withdrawMT5(credentials.token, credentials.accountId, amount, mpesa);
     if (!result.success) throw new Error(result.message);
@@ -375,7 +340,7 @@ export async function initiateDeposit(broker: Broker, amount?: number): Promise<
     broker === 'DERIV' ? getDerivDepositUrl(amount) : getMT5DepositUrl('exness', amount);
 
   await WebBrowser.openBrowserAsync(url);
-  console.log('Deposit link opened - user pays broker directly');
+  console.log('Deposit link opened - user completes payment via broker');
 }
 
 export { Broker };

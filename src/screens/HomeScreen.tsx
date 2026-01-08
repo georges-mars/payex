@@ -84,16 +84,18 @@ export const HomeScreen = () => {
   };
 
   const handleQuickAction = (action: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    if (action === 'send') {
-      navigation.navigate('SendMoney');
-    } else if (action === 'request') {
-      MagicallyAlert.alert('Coming Soon', 'Request money feature will be available soon!');
-    } else if (action === 'add') {
-      navigation.navigate('LinkAccount');
-    }
-  };
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  
+  if (action === 'send') {
+    // Send M-Pesa → Deriv/MT5 = DEPOSIT
+    navigation.navigate('Deposit');  // ✅ NEW
+  } else if (action === 'request') {
+    // Receive Deriv/MT5 → M-Pesa = WITHDRAWAL
+    navigation.navigate('Withdraw');  // ✅ NEW
+  } else if (action === 'add') {
+    navigation.navigate('LinkAccount');
+  }
+};
 
   const handlePayVexAction = (action: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
