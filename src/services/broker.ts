@@ -57,45 +57,80 @@ export async function getBrokerToken(
 }
 
 // In broker.ts - UPDATE setMpesaPhone function:
+// In broker.ts - COMPLETE setMpesaPhone function with better error handling
+// In broker.ts - COMPLETE REPLACEMENT
 export async function setMpesaPhone(phone: string): Promise<boolean> {
-  console.log('[broker.ts] setMpesaPhone called with:', phone);
+  console.log('🔧 [broker.ts] setMpesaPhone START - received:', phone);
   
-  // Remove all non-digits
-  const cleanPhone = phone.replace(/\D/g, '');
-  
-  // Convert 0712345678 to 254712345678
-  let formattedPhone = cleanPhone;
-  if (cleanPhone.startsWith('0') && cleanPhone.length === 10) {
-    formattedPhone = '254' + cleanPhone.substring(1);
-  } else if (cleanPhone.startsWith('+')) {
-    formattedPhone = cleanPhone.substring(1);
+  // Input validation
+  if (!phone || typeof phone !== 'string') {
+    console.error('❌ [broker.ts] Invalid input - not a string');
+    return false;
   }
   
-  // More lenient validation - just check it's a valid Kenyan number
-  // Kenyan numbers: 2547XXXXXXXX or 2541XXXXXXXX (12 digits total)
-  const kePhoneRegex = /^254[17]\d{8}$/;
-  
-  // Debug
-  console.log('[broker.ts] Testing:', formattedPhone, 'against regex:', kePhoneRegex);
-  console.log('[broker.ts] Length:', formattedPhone.length, 'Expected: 12');
-  console.log('[broker.ts] Starts with 2547 or 2541?:', 
-    formattedPhone.startsWith('2547') || formattedPhone.startsWith('2541'));
-  
-  const isValid = kePhoneRegex.test(formattedPhone);
-  console.log('[broker.ts] Regex test result:', isValid);
-  
-  if (!isValid) {
-    console.error('[broker.ts] Invalid format. Must be 2547XXXXXXXX or 2541XXXXXXXX');
-    console.error('[broker.ts] Got:', formattedPhone);
+  if (phone.trim().length === 0) {
+    console.error('❌ [broker.ts] Empty phone number');
     return false;
   }
   
   try {
+    // Clean the phone number
+    const cleanPhone = phone.replace(/\D/g, '');
+    console.log('🔧 [broker.ts] After cleaning digits:', cleanPhone);
+    
+    // Convert to 254 format if needed
+    let formattedPhone = cleanPhone;
+    
+    if (cleanPhone.startsWith('0') && cleanPhone.length === 10) {
+      // Convert 0712345678 to 254712345678
+      formattedPhone = '254' + cleanPhone.substring(1);
+      console.log('🔧 [broker.ts] Converted 0 format:', formattedPhone);
+    } else if (cleanPhone.startsWith('254') && cleanPhone.length === 12) {
+      // Already in correct format
+      console.log('🔧 [broker.ts] Already in 254 format');
+    } else if (cleanPhone.startsWith('7') && cleanPhone.length === 9) {
+      // Convert 712345678 to 254712345678
+      formattedPhone = '254' + cleanPhone;
+      console.log('🔧 [broker.ts] Converted 7 format:', formattedPhone);
+    } else if (cleanPhone.startsWith('1') && cleanPhone.length === 9) {
+      // Convert 112345678 to 254112345678
+      formattedPhone = '254' + cleanPhone;
+      console.log('🔧 [broker.ts] Converted 1 format:', formattedPhone);
+    } else {
+      console.error('❌ [broker.ts] Unrecognized format:', cleanPhone);
+      return false;
+    }
+    
+    // Final validation
+    if (formattedPhone.length !== 12) {
+      console.error('❌ [broker.ts] Invalid length:', formattedPhone.length);
+      return false;
+    }
+    
+    if (!formattedPhone.startsWith('254')) {
+      console.error('❌ [broker.ts] Does not start with 254:', formattedPhone);
+      return false;
+    }
+    
+    console.log('🔧 [broker.ts] Final phone to save:', formattedPhone);
+    
+    // Save to AsyncStorage
     await AsyncStorage.setItem(TOKEN_KEYS.PHONE, formattedPhone);
-    console.log('[broker.ts] Phone saved successfully:', formattedPhone);
+    
+    // Verify the save
+    const saved = await AsyncStorage.getItem(TOKEN_KEYS.PHONE);
+    console.log('🔧 [broker.ts] Verified saved value:', saved);
+    
+    if (saved !== formattedPhone) {
+      console.error('❌ [broker.ts] Save verification failed');
+      return false;
+    }
+    
+    console.log('✅ [broker.ts] setMpesaPhone SUCCESS - returning true');
     return true;
+    
   } catch (error) {
-    console.error('[broker.ts] AsyncStorage error:', error);
+    console.error('❌ [broker.ts] setMpesaPhone ERROR:', error);
     return false;
   }
 }
@@ -342,3 +377,5 @@ export async function initiateDeposit(broker: Broker, amount?: number): Promise<
   await WebBrowser.openBrowserAsync(url);
   console.log('Deposit link opened - user pays broker directly');
 }
+
+export { Broker };

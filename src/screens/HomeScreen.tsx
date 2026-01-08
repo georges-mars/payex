@@ -221,23 +221,7 @@ export const HomeScreen = () => {
           </View>
         </LinearGradient>
 
-        {/* New PayVex Quick Actions Section */}
-        <View style={{ marginBottom: 24 }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 16 }}>
-            PayVex Actions
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity style={styles.button} onPress={() => handlePayVexAction('link')}>
-              <Text style={styles.buttonText}>Link Accounts & Phone</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.greenButton]} onPress={() => handlePayVexAction('deposit')}>
-              <Text style={styles.buttonText}>Deposit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.redButton]} onPress={() => handlePayVexAction('withdraw')}>
-              <Text style={styles.buttonText}>Withdraw</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        
 
         <View style={{ marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -423,17 +407,3 @@ export const HomeScreen = () => {
   );
 };
 
-// New Styles for PayVex Buttons (Added)
-const styles = StyleSheet.create({
-  button: { 
-    flex: 1,
-    backgroundColor: 'blue', 
-    padding: 16, 
-    borderRadius: 8, 
-    marginBottom: 16,
-    alignItems: 'center' 
-  },
-  greenButton: { backgroundColor: 'green' },
-  redButton: { backgroundColor: 'red' },
-  buttonText: { color: 'white', textAlign: 'center', fontWeight: '600' },
-});

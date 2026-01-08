@@ -1,4 +1,4 @@
-// src/screens/LinkScreen.tsx - SIMPLIFIED VERSION
+// src/screens/LinkScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Alert, Platform, Switch } from 'react-native';
 import { ArrowLeft, Smartphone, Building2, TrendingUp, AlertCircle, Shield, Globe, Key, Eye, EyeOff, HelpCircle, BarChart3 } from 'lucide-react-native';
@@ -9,10 +9,11 @@ import { LinkedAccounts, LinkedAccountUtils } from '../magically/entities/Linked
 import { AnimatedSpinner, Logo } from '../components/ui';
 import { MagicallyAlert } from '../components/ui/MagicallyAlert';
 import magically from 'magically-sdk';
-import { setMpesaPhone, getMpesaPhone, type Broker, linkBroker } from '../services/broker';
+import { setMpesaPhone, getMpesaPhone, type Broker } from '../services/broker'; // IMPORT FROM YOUR BROKER SERVICE
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type AccountType = 'mpesa' | 'bank' | 'deriv' | 'binance' | 'mt5' | 'etoro' | 'interactive_brokers';
 
@@ -80,60 +81,538 @@ export const LinkAccountScreen = () => {
   
   const [selectedType, setSelectedType] = useState<AccountType>('mpesa');
   const [isLinking, setIsLinking] = useState(false);
+  const [showApiSecret, setShowApiSecret] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
-  // ✅ SIMPLE STATE LIKE OLD SCREEN
-  const [phone, setPhone] = useState('');
-  
-  // Broker linking states (from old screen)
+  // M-Pesa settings
+  const [enableBalanceAccess, setEnableBalanceAccess] = useState(false);
+  const placeholderPin = '0000';
+
+  // M-Pesa fields
+  const [mpesaPhone, setMpesaPhone] = useState('');
+
+  // Bank fields
+  const [selectedBank, setSelectedBank] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [routingNumber, setRoutingNumber] = useState('');
+
+  // Trading fields - Common
+  const [apiKey, setApiKey] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [passphrase, setPassphrase] = useState('');
+
+  // MT5 specific fields
+  const [selectedBroker, setSelectedBroker] = useState('');
+  const [mt5Login, setMt5Login] = useState('');
+  const [mt5Password, setMt5Password] = useState('');
+  const [mt5Server, setMt5Server] = useState('');
+  const [mt5InvestorPassword, setMt5InvestorPassword] = useState('');
+
+  // ADDED: Broker linking functionality from old LinkScreen
   const [broker, setBroker] = useState<Broker>('DERIV');
   const [token, setToken] = useState('');
-  const [accountId, setAccountId] = useState('');
 
   const handleTabChange = (type: AccountType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedType(type);
-  };
-
-  // ✅ EXACT SAME LOGIC AS OLD WORKING SCREEN
-  const handlePhoneSave = async () => {
-    console.log('Saving phone:', phone);
     
-    try {
-      // Direct call to setMpesaPhone - same as old screen
-      const valid = await setMpesaPhone(phone);
-      console.log('setMpesaPhone returned:', valid);
-      
-      if (valid) {
-        // Same success alert as old screen
-        Alert.alert('Saved!', 'M-Pesa phone set for withdrawals');
-        
-        // Same navigation as old screen
-        navigation.navigate('MainTabs');
-      } else {
-        // Same error alert as old screen
-        Alert.alert('Error', 'Invalid phone: Use 2547XXXXXXXX format');
-      }
-    } catch (error) {
-      console.error('Phone save error:', error);
-      Alert.alert('Error', 'Failed to save phone number');
+    // Reset form when changing tabs
+    if (type !== 'deriv' && type !== 'binance' && type !== 'mt5' && type !== 'etoro' && type !== 'interactive_brokers') {
+      setApiKey('');
+      setApiSecret('');
+      setAccountId('');
+      setPassphrase('');
+      setSelectedBroker('');
+      setMt5Login('');
+      setMt5Password('');
+      setMt5Server('');
+      setMt5InvestorPassword('');
+    }
+    
+    // Reset balance access toggle for M-Pesa
+    if (type === 'mpesa') {
+      setEnableBalanceAccess(false);
     }
   };
 
-  // ✅ EXACT SAME LOGIC AS OLD WORKING SCREEN
-  const handleTestLink = async () => {
-    let data = token;
-    if (broker === 'MT5') data = JSON.stringify({ token, accountId });
-    const success = await linkBroker(broker, data);
-    Alert.alert('Test Result', success ? 'Token valid!' : 'Invalid token – check & retry');
+  // ADDED: Phone validation and saving logic from old LinkScreen
+  const validateAndSaveMpesaPhone = async (): Promise<boolean> => {
+    console.log('📱 Starting phone validation...');
+    
+    const cleanPhone = mpesaPhone.replace(/\s+/g, '').replace(/[^\d]/g, '');
+    console.log('📱 Cleaned phone:', cleanPhone);
+    
+    let formattedPhone = cleanPhone;
+    
+    // Convert 0712345678 to 254712345678
+    if (cleanPhone.startsWith('0') && cleanPhone.length === 10) {
+      formattedPhone = '254' + cleanPhone.substring(1);
+      console.log('📱 Converted 0XXXXXXXX to 254 format:', formattedPhone);
+    } 
+    // Remove + if present
+    else if (cleanPhone.startsWith('+')) {
+      formattedPhone = cleanPhone.substring(1);
+      console.log('📱 Removed + prefix:', formattedPhone);
+    }
+    // If starts with 254 but has wrong length
+    else if (cleanPhone.startsWith('254')) {
+      formattedPhone = cleanPhone;
+    }
+    
+    console.log('📱 Final formatted phone:', formattedPhone, 'Length:', formattedPhone.length);
+    
+    // Simple validation
+    if (formattedPhone.length !== 12) {
+      console.error('❌ Phone must be 12 digits');
+      MagicallyAlert.alert('Invalid Phone', 'Phone number must be 12 digits (254XXXXXXXXX)');
+      return false;
+    }
+    
+    if (!formattedPhone.startsWith('254')) {
+      console.error('❌ Phone must start with 254');
+      MagicallyAlert.alert('Invalid Phone', 'Phone number must start with 254');
+      return false;
+    }
+    
+    console.log('✅ Phone format valid:', formattedPhone);
+    
+    // Save using your broker service function
+    try {
+      console.log('💾 Calling setMpesaPhone with:', formattedPhone);
+      const result = await setMpesaPhone(formattedPhone);
+      console.log('💾 setMpesaPhone returned:', result);
+      
+      // Handle undefined return
+      if (result === undefined) {
+        console.error('❌ setMpesaPhone returned undefined!');
+        MagicallyAlert.alert('Error', 'Failed to save phone number (undefined response)');
+        return false;
+      }
+      
+      if (!result) {
+        MagicallyAlert.alert('Error', 'Failed to save phone number. Please try again.');
+        return false;
+      }
+      
+      // Verify it was saved
+      const savedPhone = await getMpesaPhone();
+      console.log('💾 Retrieved saved phone:', savedPhone);
+      
+      if (savedPhone !== formattedPhone) {
+        console.error('❌ Phone saved incorrectly:', { expected: formattedPhone, got: savedPhone });
+        MagicallyAlert.alert('Error', 'Phone saved but verification failed');
+        return false;
+      }
+      
+      // Save the formatted phone in local state too
+      setMpesaPhoneState(formattedPhone);
+      console.log('✅ Phone saved successfully!');
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Error saving phone:', error);
+      MagicallyAlert.alert('Error', `Failed to save phone number: ${error.message}`);
+      return false;
+    }
   };
 
-  // ✅ EXACT SAME LOGIC AS OLD WORKING SCREEN
-  const handleLink = async () => {
-    let data = token;
-    if (broker === 'MT5') data = JSON.stringify({ token, accountId });
-    const success = await linkBroker(broker, data);
-    if (success) {
-      Alert.alert('Linked!', `Ready for ${broker} deposits/withdraws`);
+  const validateBank = () => {
+    if (!selectedBank) {
+      MagicallyAlert.alert('Missing Bank', 'Please select your bank');
+      return false;
+    }
+    
+    const cleanAccountNumber = accountNumber.replace(/\s+/g, '');
+    
+    if (!cleanAccountNumber || cleanAccountNumber.length < 8) {
+      MagicallyAlert.alert('Invalid Account', 'Please enter a valid account number (minimum 8 digits)');
+      return false;
+    }
+    
+    if (!/^\d+$/.test(cleanAccountNumber)) {
+      MagicallyAlert.alert('Invalid Account', 'Account number must contain only numbers');
+      return false;
+    }
+    
+    setAccountNumber(cleanAccountNumber);
+    
+    if (!accountName.trim()) {
+      MagicallyAlert.alert('Missing Name', 'Please enter account holder name');
+      return false;
+    }
+    
+    if (accountName.trim().length < 3) {
+      MagicallyAlert.alert('Invalid Name', 'Account holder name must be at least 3 characters');
+      return false;
+    }
+    
+    return true;
+  };
+
+  const validateTrading = () => {
+    const platformInfo = TRADING_PLATFORMS_INFO[selectedType];
+    
+    if (!platformInfo) {
+      MagicallyAlert.alert('Invalid Platform', 'Please select a valid trading platform');
+      return false;
+    }
+    
+    // Platform-specific validation
+    switch(selectedType) {
+      case 'deriv':
+        if (!apiKey.trim()) {
+          MagicallyAlert.alert('Missing API Token', 'Please enter your Deriv API token');
+          return false;
+        }
+        break;
+        
+      case 'binance':
+        if (!apiKey.trim()) {
+          MagicallyAlert.alert('Missing API Key', 'Please enter your Binance API key');
+          return false;
+        }
+        if (!apiSecret.trim()) {
+          MagicallyAlert.alert('Missing API Secret', 'Please enter your Binance API secret');
+          return false;
+        }
+        if (apiKey.trim().length < 20 || apiSecret.trim().length < 20) {
+          MagicallyAlert.alert('Invalid Credentials', 'Binance API credentials appear too short. Please check your key and secret.');
+          return false;
+        }
+        break;
+        
+      case 'mt5':
+        if (!selectedBroker) {
+          MagicallyAlert.alert('Missing Broker', 'Please select your MT5 broker');
+          return false;
+        }
+        if (!mt5Login.trim()) {
+          MagicallyAlert.alert('Missing Login', 'Please enter your MT5 account login number');
+          return false;
+        }
+        if (!/^\d+$/.test(mt5Login.trim())) {
+          MagicallyAlert.alert('Invalid Login', 'MT5 login must be a number');
+          return false;
+        }
+        if (!mt5Password.trim()) {
+          MagicallyAlert.alert('Missing Password', 'Please enter your MT5 account password');
+          return false;
+        }
+        if (!mt5Server.trim()) {
+          MagicallyAlert.alert('Missing Server', 'Please enter your MT5 server name');
+          return false;
+        }
+        break;
+        
+      case 'etoro':
+      case 'interactive_brokers':
+        if (!apiKey.trim()) {
+          MagicallyAlert.alert('Missing API Key', 'Please enter your API key');
+          return false;
+        }
+        break;
+        
+      default:
+        return false;
+    }
+    
+    return true;
+  };
+
+  // MODIFIED: Handle M-Pesa phone saving specifically
+  const handlePhoneSave = async () => {
+    if (!mpesaPhone.trim()) {
+      MagicallyAlert.alert('Error', 'Please enter a phone number');
+      return;
+    }
+    
+    setIsLinking(true);
+    
+    try {
+      // Save directly
+      await AsyncStorage.setItem('user_mpesa_phone', mpesaPhone.trim());
+      
+      // Verify
+      const saved = await AsyncStorage.getItem('user_mpesa_phone');
+      
+      if (saved !== mpesaPhone.trim()) {
+        throw new Error('Save failed');
+      }
+      
+      // Create account
+      const mpesaAccount = await LinkedAccounts.create({
+        accountType: 'mpesa',
+        accountName: `M-Pesa`,
+        accountNumber: mpesaPhone.trim(),
+        balance: 0,
+        currency: 'KES',
+        status: 'active',
+        isDefault: accounts.length === 0,
+        linkedDate: new Date().toISOString(),
+        metadata: { phoneNumber: mpesaPhone.trim() }
+      });
+      
+      setAccounts([mpesaAccount, ...accounts]);
+      
+      MagicallyAlert.alert(
+        'Saved! ✅',
+        'Phone number saved successfully',
+        [{ text: 'OK', onPress: () => navigation.navigate('MainTabs') }]
+      );
+      
+    } catch (error) {
+      MagicallyAlert.alert('Error', 'Failed to save');
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
+  // MODIFIED: Main link account function - includes M-Pesa phone saving
+  const handleLinkAccount = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  
+    // Handle M-Pesa phone saving separately (from old screen)
+    if (selectedType === 'mpesa') {
+      await handlePhoneSave();
+      return;
+    }
+  
+    // For other account types, use the existing logic
+    let isValid = false;
+    if (selectedType === 'bank') {
+      isValid = validateBank();
+    } else if (['deriv', 'binance', 'mt5', 'etoro', 'interactive_brokers'].includes(selectedType)) {
+      isValid = validateTrading();
+    }
+  
+    if (!isValid) {
+      console.log('❌ Validation failed');
+      return;
+    }
+  
+    setIsLinking(true);
+  
+    try {
+      console.log('🔵 [REAL] Calling edge function...');
+      
+      let payload: any = {};
+      let functionName = 'link-trading-account';
+  
+      if (selectedType === 'bank') {
+        functionName = 'link-bank-account';
+        payload = {
+          bankName: selectedBank,
+          accountNumber,
+          accountName: accountName.trim(),
+          routingNumber: routingNumber || undefined,
+        };
+      } else if (['deriv', 'binance', 'mt5', 'etoro', 'interactive_brokers'].includes(selectedType)) {
+        const platformInfo = TRADING_PLATFORMS_INFO[selectedType];
+        
+        payload = {
+          platform: selectedType,
+        };
+  
+        switch(selectedType) {
+          case 'deriv':
+            payload.apiKey = apiKey.trim();
+            payload.accountId = accountId.trim() || undefined;
+            payload.apiSecret = 'deriv-does-not-require-api-secret';
+            break;
+            
+          case 'binance':
+            payload.apiKey = apiKey.trim();
+            payload.apiSecret = apiSecret.trim();
+            payload.passphrase = passphrase.trim() || undefined;
+            payload.accountId = accountId.trim() || undefined;
+            break;
+            
+          case 'mt5':
+            payload.broker = selectedBroker;
+            payload.login = parseInt(mt5Login.trim());
+            payload.password = mt5Password.trim();
+            payload.server = mt5Server.trim();
+            payload.investorPassword = mt5InvestorPassword.trim() || undefined;
+            break;
+            
+          default:
+            payload.apiKey = apiKey.trim();
+            payload.accountId = accountId.trim() || undefined;
+            if (apiSecret.trim()) {
+              payload.apiSecret = apiSecret.trim();
+            }
+        }
+      }
+  
+      console.log('🔵 [REAL] Payload (masked):', {
+        ...payload,
+        apiSecret: payload.apiSecret ? '***REDACTED***' : undefined,
+        password: payload.password ? '***REDACTED***' : undefined,
+        investorPassword: payload.investorPassword ? '***REDACTED***' : undefined,
+        pin: payload.pin ? '***REDACTED***' : undefined
+      });
+  
+      // REAL API CALL to edge function
+      const response = await magically.functions.invoke(functionName, {
+        body: payload,
+        timeout: 30000
+      });
+  
+      console.log('🟡 [REAL] Response received:', {
+        status: response.status,
+        hasData: !!response.data
+      });
+  
+      const responseData = response.data as any;
+      
+      if (!responseData) {
+        throw new Error('No response from server');
+      }
+  
+      if (responseData.success && responseData.data) {
+        console.log('✅ [REAL] Edge function succeeded, creating account...');
+        
+        let defaultCurrency = 'KES';
+        if (selectedType === 'deriv' || selectedType === 'mt5' || selectedType === 'etoro' || selectedType === 'interactive_brokers') {
+          defaultCurrency = responseData.data.currency || 'USD';
+        } else if (selectedType === 'binance') {
+          defaultCurrency = 'USDT';
+        }
+  
+        // Create linked account with REAL data
+        const newAccount = await LinkedAccounts.create({
+          accountType: selectedType,
+          accountName: responseData.data.accountName,
+          accountNumber: responseData.data.maskedAccountNumber,
+          balance: responseData.data.balance || 0,
+          currency: responseData.data.currency || defaultCurrency,
+          status: responseData.data.status || 'active',
+          isDefault: accounts.length === 0,
+          linkedDate: new Date().toISOString(),
+          metadata: {
+            platform: selectedType,
+            phoneNumber: selectedType === 'mpesa' ? mpesaPhone : undefined,
+            hasBalanceAccess: responseData.data.metadata?.hasBalanceAccess || false,
+            placeholderPinUsed: selectedType === 'mpesa',
+            accountId: selectedType === 'mt5' ? mt5Login.trim() : (accountId.trim() || undefined),
+            brokerName: selectedType === 'mt5' ? selectedBroker : undefined,
+            server: selectedType === 'mt5' ? mt5Server.trim() : undefined,
+            login: selectedType === 'mt5' ? parseInt(mt5Login.trim()) : undefined,
+            maskedApiKey: apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : undefined,
+            lastSynced: new Date().toISOString(),
+            requiresManualVerification: responseData.data.status === 'needs_verification',
+            validatedWithRealApi: responseData.data.metadata?.validatedWithRealApi || false,
+            leverage: responseData.data.metadata?.leverage,
+            marginLevel: responseData.data.metadata?.marginLevel,
+            ...responseData.data.metadata
+          }
+        });
+  
+        console.log('✅ [REAL] Account created:', {
+          id: newAccount._id,
+          name: newAccount.accountName,
+          balance: newAccount.balance,
+          currency: newAccount.currency,
+          type: newAccount.accountType,
+          hasBalanceAccess: newAccount.metadata?.hasBalanceAccess
+        });
+  
+        // Update store
+        setAccounts([newAccount, ...accounts]);
+  
+        // Show success with REAL data
+        const formattedBalance = new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: newAccount.currency,
+        }).format(newAccount.balance);
+  
+        let successMessage = `${newAccount.accountName} has been verified and linked.\n\nBalance: ${formattedBalance}`;
+        
+        if (newAccount.metadata?.leverage) {
+          successMessage += `\nLeverage: 1:${newAccount.metadata.leverage}`;
+        }
+        if (newAccount.metadata?.marginLevel) {
+          successMessage += `\nMargin Level: ${newAccount.metadata.marginLevel}%`;
+        }
+  
+        // Add note for Deriv demo accounts
+        if (selectedType === 'deriv' && newAccount.metadata?.isDemo) {
+          successMessage += `\n\n📝 Note: This is a Deriv demo account. Real accounts will show actual balances.`;
+        }
+  
+        MagicallyAlert.alert(
+          'Account Linked Successfully! ✅',
+          successMessage,
+          [
+            {
+              text: 'View Account',
+              onPress: () => {
+                navigation.navigate('AccountDetails', { accountId: newAccount._id });
+              }
+            },
+            {
+              text: 'Done',
+              onPress: () => navigation.goBack(),
+              style: 'default'
+            }
+          ]
+        );
+  
+      } else {
+        console.log('❌ [REAL] Edge function returned failure:', responseData);
+        throw new Error(responseData.message || 'Failed to link account');
+      }
+  
+    } catch (error: any) {
+      console.error('🔴 [REAL] Error details:');
+      console.error('Message:', error.message);
+      console.error('Name:', error.name);
+      
+      let errorTitle = 'Linking Failed';
+      let errorMessage = error.message || 'Failed to link account';
+      
+      if (error.message.includes('Invalid Deriv API token')) {
+        errorTitle = 'Invalid Deriv Token';
+        errorMessage = 'Your Deriv API token is invalid or expired. Please generate a new one from Deriv.com';
+      } else if (error.message.includes('Invalid Binance API credentials')) {
+        errorTitle = 'Invalid Binance Credentials';
+        errorMessage = 'Your Binance API key or secret is incorrect. Please check them in Binance settings.';
+      } else if (error.message.includes('MT5') && error.message.includes('invalid')) {
+        errorTitle = 'Invalid MT5 Credentials';
+        errorMessage = 'Your MT5 login credentials are incorrect. Please check your account number, password, and server.';
+      } else if (error.message.includes('MT5') && error.message.includes('connection')) {
+        errorTitle = 'MT5 Connection Failed';
+        errorMessage = 'Cannot connect to MT5 server. Check your internet connection or try a different server.';
+      } else if (error.message.includes('Cannot connect')) {
+        errorTitle = 'Connection Error';
+        errorMessage = 'Cannot connect to the trading platform. Please check your internet connection.';
+      } else if (error.message.includes('rate limit')) {
+        errorTitle = 'Rate Limited';
+        errorMessage = 'Too many requests. Please wait a minute and try again.';
+      } else if (error.message.includes('timeout')) {
+        errorTitle = 'Timeout';
+        errorMessage = 'The request took too long. The trading platform might be slow. Try again.';
+      } else if (error.message.includes('CORS')) {
+        errorTitle = 'CORS Error';
+        errorMessage = 'Cross-origin request blocked. Please check edge function CORS configuration.';
+      }
+  
+      MagicallyAlert.alert(
+        errorTitle,
+        errorMessage,
+        [
+          { text: 'OK', style: 'default' },
+          {
+            text: 'Get Help',
+            onPress: () => navigation.navigate('Support'),
+            style: 'cancel'
+          }
+        ]
+      );
+    } finally {
+      setIsLinking(false);
     }
   };
 
@@ -145,114 +624,227 @@ export const LinkAccountScreen = () => {
     { type: 'mt5' as AccountType, label: 'MT5', icon: BarChart3, color: '#00B894' },
   ];
 
-  const renderTradingForm = () => (
-    <View style={{ gap: 20 }}>
-      <View style={{ marginBottom: 8 }}>
-        <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text }}>
-          {selectedType === 'deriv' ? 'Deriv' : selectedType === 'binance' ? 'Binance' : 'MT5'} Account
-        </Text>
-        <Text style={{ fontSize: 14, color: theme.textMuted, marginTop: 4 }}>
-          Link your trading account for deposits and withdrawals
-        </Text>
-      </View>
-
-      {/* ✅ SIMPLE BROKER SWITCHER LIKE OLD SCREEN */}
-      <Pressable 
-        onPress={() => setBroker(broker === 'DERIV' ? 'MT5' : 'DERIV')} 
-        style={({ pressed }) => ({
-          backgroundColor: theme.primary,
-          padding: 16,
-          borderRadius: 12,
-          alignItems: 'center',
-          transform: [{ scale: pressed ? 0.98 : 1 }]
-        })}
-      >
-        <Text style={{ color: theme.primaryForeground, fontSize: 16, fontWeight: '600' }}>
-          Switch to {broker === 'DERIV' ? 'MT5' : 'Deriv'}
-        </Text>
-      </Pressable>
-      
-      <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
-        {broker} API Token *
-      </Text>
-      <TextInput
-        value={token}
-        onChangeText={setToken}
-        placeholder={broker === 'DERIV' ? "Deriv API Token (e.g., abc123...)" : "MetaApi Token (for MT5)"}
-        placeholderTextColor={theme.textLight}
-        autoCapitalize="none"
-        autoCorrect={false}
-        secureTextEntry
-        style={{
-          backgroundColor: theme.inputBackground,
-          borderRadius: 14,
-          padding: 16,
-          fontSize: 16,
-          color: theme.text,
-          borderWidth: 1,
-          borderColor: theme.border,
-        }}
-      />
-      
-      {broker === 'MT5' && (
-        <View>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
-            MT5 Account ID *
+  const renderTradingForm = () => {
+    const platformInfo = TRADING_PLATFORMS_INFO[selectedType];
+    
+    return (
+      <View style={{ gap: 20 }}>
+        <View style={{ marginBottom: 8 }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text }}>
+            {platformInfo?.name} Account
           </Text>
-          <TextInput
-            value={accountId}
-            onChangeText={setAccountId}
-            placeholder="Your MT5 Account ID"
-            placeholderTextColor={theme.textLight}
-            style={{
-              backgroundColor: theme.inputBackground,
-              borderRadius: 14,
-              padding: 16,
-              fontSize: 16,
-              color: theme.text,
-              borderWidth: 1,
-              borderColor: theme.border,
-            }}
-          />
+          <Text style={{ fontSize: 14, color: theme.textMuted, marginTop: 4 }}>
+            {platformInfo?.description}
+          </Text>
         </View>
-      )}
-      
-      {/* ✅ SAME BUTTONS AS OLD SCREEN */}
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <Pressable
-          onPress={handleTestLink}
-          style={({ pressed }) => ({
-            flex: 1,
-            backgroundColor: theme.warning,
+
+        {selectedType === 'deriv' && (
+          <View style={{
+            backgroundColor: `${theme.info}15`,
             borderRadius: 12,
             padding: 16,
-            alignItems: 'center',
-            transform: [{ scale: pressed ? 0.98 : 1 }]
-          })}
-        >
-          <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600' }}>
-            Test Token
-          </Text>
-        </Pressable>
-        
-        <Pressable
-          onPress={handleLink}
-          style={({ pressed }) => ({
-            flex: 1,
-            backgroundColor: theme.success,
+            marginBottom: 8,
+            borderLeftWidth: 4,
+            borderLeftColor: theme.info,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <HelpCircle size={16} color={theme.info} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text }}>
+                Deriv Only Needs API Token
+              </Text>
+            </View>
+            <Text style={{ fontSize: 12, color: theme.textMuted, lineHeight: 18 }}>
+              • Deriv uses OAuth tokens, not API key/secret pairs{'\n'}
+              • Get token from: Settings → API Token in Deriv{'\n'}
+              • Enable "Read" permissions only{'\n'}
+              • <Text style={{ fontWeight: '700', color: theme.warning }}>Leave API secret field empty for Deriv</Text>
+            </Text>
+          </View>
+        )}
+
+        {/* API Key Field (for non-MT5 platforms) */}
+        {selectedType !== 'mt5' && (
+          <View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted }}>
+                API {selectedType === 'deriv' ? 'TOKEN' : 'KEY'} *
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate('WebView', { 
+                    url: platformInfo?.setupGuide,
+                    title: `${platformInfo?.name} API Setup`
+                  });
+                }}
+              >
+                <Text style={{ fontSize: 12, color: theme.primary, fontWeight: '500' }}>
+                  Need help?
+                </Text>
+              </Pressable>
+            </View>
+            <TextInput
+              value={apiKey}
+              onChangeText={setApiKey}
+              placeholder={selectedType === 'deriv' ? 'Enter your Deriv API token' : `Enter your ${platformInfo?.name} API key`}
+              placeholderTextColor={theme.textLight}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              spellCheck={false}
+              style={{
+                backgroundColor: theme.inputBackground,
+                borderRadius: 14,
+                padding: 16,
+                fontSize: 16,
+                color: theme.text,
+                borderWidth: 1,
+                borderColor: theme.border,
+                fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+              }}
+            />
+          </View>
+        )}
+
+        {/* API Secret Field (only for Binance) */}
+        {selectedType === 'binance' && (
+          <View>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
+              API SECRET *
+            </Text>
+            <View style={{ position: 'relative' }}>
+              <TextInput
+                value={apiSecret}
+                onChangeText={setApiSecret}
+                placeholder={`Enter your ${platformInfo?.name} API secret`}
+                placeholderTextColor={theme.textLight}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
+                spellCheck={false}
+                secureTextEntry={!showApiSecret}
+                style={{
+                  backgroundColor: theme.inputBackground,
+                  borderRadius: 14,
+                  padding: 16,
+                  fontSize: 16,
+                  color: theme.text,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                  paddingRight: 50,
+                }}
+              />
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowApiSecret(!showApiSecret);
+                }}
+                style={{
+                  position: 'absolute',
+                  right: 16,
+                  top: 16,
+                  padding: 4,
+                }}
+              >
+                {showApiSecret ? (
+                  <EyeOff size={20} color={theme.textMuted} />
+                ) : (
+                  <Eye size={20} color={theme.textMuted} />
+                )}
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 6 }}>
+              Your API secret is encrypted and securely stored
+            </Text>
+          </View>
+        )}
+
+        {/* Passphrase Field (for Binance) */}
+        {selectedType === 'binance' && (
+          <View>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
+              PASSPHRASE (OPTIONAL)
+            </Text>
+            <TextInput
+              value={passphrase}
+              onChangeText={setPassphrase}
+              placeholder="Enter API passphrase if required"
+              placeholderTextColor={theme.textLight}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              secureTextEntry
+              style={{
+                backgroundColor: theme.inputBackground,
+                borderRadius: 14,
+                padding: 16,
+                fontSize: 16,
+                color: theme.text,
+                borderWidth: 1,
+                borderColor: theme.border,
+              }}
+            />
+            <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 6 }}>
+              Only required if you set a passphrase when creating API key
+            </Text>
+          </View>
+        )}
+
+        {/* Account ID Field (for non-MT5 platforms) */}
+        {selectedType !== 'mt5' && selectedType !== 'mpesa' && selectedType !== 'bank' && (
+          <View>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
+              ACCOUNT ID (OPTIONAL)
+            </Text>
+            <TextInput
+              value={accountId}
+              onChangeText={setAccountId}
+              placeholder={`Enter your ${platformInfo?.name} account ID`}
+              placeholderTextColor={theme.textLight}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                backgroundColor: theme.inputBackground,
+                borderRadius: 14,
+                padding: 16,
+                fontSize: 16,
+                color: theme.text,
+                borderWidth: 1,
+                borderColor: theme.border,
+              }}
+            />
+            <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 6 }}>
+              Required for platforms with multiple accounts
+            </Text>
+          </View>
+        )}
+
+        {/* Manual Verification Notice */}
+        {(selectedType === 'etoro' || selectedType === 'interactive_brokers') && (
+          <View style={{
+            backgroundColor: `${theme.secondary}15`,
             borderRadius: 12,
             padding: 16,
-            alignItems: 'center',
-            transform: [{ scale: pressed ? 0.98 : 1 }]
-          })}
-        >
-          <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
-            Save & Link
-          </Text>
-        </Pressable>
+            marginTop: 8,
+            borderWidth: 1,
+            borderColor: `${theme.secondary}30`,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <AlertCircle size={16} color={theme.secondary} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text }}>
+                Manual Verification Required
+              </Text>
+            </View>
+            <Text style={{ fontSize: 12, color: theme.textMuted, lineHeight: 18 }}>
+              Due to platform restrictions, {platformInfo?.name} accounts require manual verification. 
+              Our support team will contact you within 24 hours to complete the setup.
+            </Text>
+          </View>
+        )}
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderMpesaForm = () => (
     <View style={{ gap: 20 }}>
@@ -274,7 +866,7 @@ export const LinkAccountScreen = () => {
           • Enter your M-Pesa phone number for withdrawals{'\n'}
           • Phone number is securely stored locally{'\n'}
           • Used only for direct broker transfers{'\n'}
-          • Format: 2547XXXXXXXX or 0712345678
+          • Format: 2547XXXXXXXX (Kenyan numbers only)
         </Text>
       </View>
 
@@ -283,8 +875,8 @@ export const LinkAccountScreen = () => {
           M-PESA PHONE NUMBER *
         </Text>
         <TextInput
-          value={phone}
-          onChangeText={setPhone}
+          value={mpesaPhone}
+          onChangeText={setMpesaPhone}
           placeholder="254712345678 or 0712345678"
           placeholderTextColor={theme.textLight}
           keyboardType="phone-pad"
@@ -302,17 +894,32 @@ export const LinkAccountScreen = () => {
           Used for withdrawals only. Never shared with third parties.
         </Text>
       </View>
-    </View>
-  );
 
-  const renderBankForm = () => (
-    <View style={{ gap: 20 }}>
-      <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 8 }}>
-        Bank Account
-      </Text>
-      <Text style={{ fontSize: 14, color: theme.textMuted, marginBottom: 16 }}>
-        Coming soon! Bank account linking will be available in the next update.
-      </Text>
+      {/* Balance Access Toggle (Optional - keep if you want) */}
+      <View style={{
+        backgroundColor: theme.cardBackground,
+        borderRadius: 14,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: theme.border,
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 4 }}>
+              Enable Balance Access (Future)
+            </Text>
+            <Text style={{ fontSize: 12, color: theme.textMuted }}>
+              Prepare for future real-time balance updates
+            </Text>
+          </View>
+          <Switch
+            value={enableBalanceAccess}
+            onValueChange={setEnableBalanceAccess}
+            trackColor={{ false: theme.muted, true: theme.primary }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      </View>
     </View>
   );
 
@@ -366,7 +973,7 @@ export const LinkAccountScreen = () => {
           >
             <Shield size={20} color={theme.secondary} strokeWidth={2} style={{ marginRight: 12, marginTop: 2 }} />
             <Text style={{ flex: 1, fontSize: 13, color: theme.text, lineHeight: 20 }}>
-              All credentials are encrypted and never stored in plain text.
+              All credentials are encrypted and never stored in plain text. M-Pesa phone numbers are stored locally for withdrawals.
             </Text>
           </View>
 
@@ -420,19 +1027,128 @@ export const LinkAccountScreen = () => {
 
           {/* Form Rendering */}
           {selectedType === 'mpesa' && renderMpesaForm()}
-          {selectedType === 'bank' && renderBankForm()}
-          {['deriv', 'binance', 'mt5'].includes(selectedType) && renderTradingForm()}
 
-          {/* Save/Link Button */}
+          {selectedType === 'bank' && (
+            <View style={{ gap: 20 }}>
+              <View>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
+                  SELECT BANK *
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row', gap: 8, paddingRight: 10 }}>
+                    {BANKS.map((bank) => (
+                      <Pressable
+                        key={bank}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setSelectedBank(bank);
+                        }}
+                        style={({ pressed }) => ({
+                          paddingVertical: 12,
+                          paddingHorizontal: 18,
+                          borderRadius: 12,
+                          backgroundColor: selectedBank === bank ? theme.primary : theme.cardBackground,
+                          borderWidth: 2,
+                          borderColor: selectedBank === bank ? theme.primary : theme.border,
+                          transform: [{ scale: pressed ? 0.96 : 1 }],
+                        })}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: '600',
+                            color: selectedBank === bank ? theme.primaryForeground : theme.text,
+                          }}
+                        >
+                          {bank}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+
+              <View>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
+                  ACCOUNT NUMBER *
+                </Text>
+                <TextInput
+                  value={accountNumber}
+                  onChangeText={setAccountNumber}
+                  placeholder="Enter account number"
+                  placeholderTextColor={theme.textLight}
+                  keyboardType="number-pad"
+                  style={{
+                    backgroundColor: theme.inputBackground,
+                    borderRadius: 14,
+                    padding: 16,
+                    fontSize: 16,
+                    color: theme.text,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                  }}
+                />
+              </View>
+
+              <View>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
+                  ACCOUNT HOLDER NAME *
+                </Text>
+                <TextInput
+                  value={accountName}
+                  onChangeText={setAccountName}
+                  placeholder="Enter account holder name"
+                  placeholderTextColor={theme.textLight}
+                  style={{
+                    backgroundColor: theme.inputBackground,
+                    borderRadius: 14,
+                    padding: 16,
+                    fontSize: 16,
+                    color: theme.text,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                  }}
+                />
+              </View>
+
+              <View>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
+                  ROUTING NUMBER (OPTIONAL)
+                </Text>
+                <TextInput
+                  value={routingNumber}
+                  onChangeText={setRoutingNumber}
+                  placeholder="Enter routing/swift code"
+                  placeholderTextColor={theme.textLight}
+                  style={{
+                    backgroundColor: theme.inputBackground,
+                    borderRadius: 14,
+                    padding: 16,
+                    fontSize: 16,
+                    color: theme.text,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                  }}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Trading Form for all trading platforms */}
+          {['deriv', 'binance', 'mt5', 'etoro', 'interactive_brokers'].includes(selectedType) && renderTradingForm()}
+
+          {/* Link Account Button */}
           <Pressable
-            onPress={selectedType === 'mpesa' ? handlePhoneSave : handleLink}
+            onPress={handleLinkAccount}
             disabled={isLinking}
             style={({ pressed }) => ({
               backgroundColor: isLinking ? theme.muted : theme.primary,
               borderRadius: 16,
               padding: 18,
+              flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
+              gap: 10,
               marginTop: 32,
               shadowColor: theme.primary,
               shadowOffset: { width: 0, height: 4 },
@@ -442,29 +1158,44 @@ export const LinkAccountScreen = () => {
               transform: [{ scale: pressed && !isLinking ? 0.98 : 1 }],
             })}
           >
-            <Text style={{ color: theme.primaryForeground, fontSize: 17, fontWeight: '700' }}>
-              {selectedType === 'mpesa' ? 'Save Phone Number' : 'Link Account'}
-            </Text>
+            {isLinking ? (
+              <>
+                <AnimatedSpinner size={20} color={theme.primaryForeground} />
+                <Text style={{ color: theme.primaryForeground, fontSize: 17, fontWeight: '700' }}>
+                  Linking Account...
+                </Text>
+              </>
+            ) : (
+              <Text style={{ color: theme.primaryForeground, fontSize: 17, fontWeight: '700' }}>
+                {selectedType === 'mpesa' ? 'Save Phone Number' : 'Link Account'}
+              </Text>
+            )}
           </Pressable>
 
-          {/* Test Button for Trading Accounts */}
-          {['deriv', 'binance', 'mt5'].includes(selectedType) && (
+          {/* Help Link for Trading Platforms */}
+          {['deriv', 'binance', 'mt5', 'etoro', 'interactive_brokers'].includes(selectedType) && (
             <Pressable
-              onPress={handleTestLink}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                const platformInfo = TRADING_PLATFORMS_INFO[selectedType];
+                navigation.navigate('WebView', { 
+                  url: platformInfo.setupGuide,
+                  title: `${platformInfo.name} Setup Guide`
+                });
+              }}
               style={({ pressed }) => ({
-                backgroundColor: theme.cardBackground,
-                borderRadius: 16,
                 padding: 16,
                 alignItems: 'center',
-                marginTop: 16,
-                borderWidth: 2,
-                borderColor: theme.border,
+                marginTop: 20,
                 transform: [{ scale: pressed ? 0.98 : 1 }],
               })}
             >
-              <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600' }}>
-                Test Connection First
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Key size={16} color={theme.primary} />
+                <Text style={{ color: theme.primary, fontSize: 14, fontWeight: '600' }}>
+                  View Setup Guide
+                </Text>
+              </View>
             </Pressable>
           )}
         </View>
