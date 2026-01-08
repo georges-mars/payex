@@ -56,21 +56,29 @@ export async function getBrokerToken(
   }
 }
 
+// In broker.ts - UPDATE setMpesaPhone function:
 export async function setMpesaPhone(phone: string): Promise<boolean> {
+  // Remove all non-digits
+  const cleanPhone = phone.replace(/\D/g, '');
+  
+  // Convert 0712345678 to 254712345678
+  let formattedPhone = cleanPhone;
+  if (cleanPhone.startsWith('0') && cleanPhone.length === 10) {
+    formattedPhone = '254' + cleanPhone.substring(1);
+  } else if (cleanPhone.startsWith('+')) {
+    formattedPhone = cleanPhone.substring(1);
+  }
+  
+  // Final validation
   const kePhoneRegex = /^254[17]\d{8}$/;
-  if (!kePhoneRegex.test(phone)) {
-    console.error('Invalid Kenyan phone format. Use 254XXXXXXXXX');
+  if (!kePhoneRegex.test(formattedPhone)) {
+    console.error('Invalid Kenyan phone format. Use 254XXXXXXXXX or 07XXXXXXXX');
     return false;
   }
   
-  try {
-    await AsyncStorage.setItem(TOKEN_KEYS.PHONE, phone);
-    console.log('Phone saved successfully:', phone);
-    return true;
-  } catch (error) {
-    console.error('Failed to save phone:', error);
-    return false;
-  }
+  // Save the formatted number
+  await AsyncStorage.setItem(TOKEN_KEYS.PHONE, formattedPhone);
+  return true;
 }
 
 export async function getMpesaPhone(): Promise<string | null> {

@@ -1,3 +1,4 @@
+// src/screens/LinkScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Alert, Platform, Switch } from 'react-native';
 import { ArrowLeft, Smartphone, Building2, TrendingUp, AlertCircle, Shield, Globe, Key, Eye, EyeOff, HelpCircle, BarChart3 } from 'lucide-react-native';
@@ -8,6 +9,10 @@ import { LinkedAccounts, LinkedAccountUtils } from '../magically/entities/Linked
 import { AnimatedSpinner, Logo } from '../components/ui';
 import { MagicallyAlert } from '../components/ui/MagicallyAlert';
 import magically from 'magically-sdk';
+import { setMpesaPhone, getMpesaPhone, type Broker } from '../services/broker'; // IMPORT FROM YOUR BROKER SERVICE
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 
 type AccountType = 'mpesa' | 'bank' | 'deriv' | 'binance' | 'mt5' | 'etoro' | 'interactive_brokers';
 
@@ -66,9 +71,13 @@ const TRADING_PLATFORMS_INFO = {
   }
 };
 
-export const LinkAccountScreen = ({ navigation }: any) => {
+type LinkScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Link'>;
+
+export const LinkAccountScreen = () => {
   const theme = useTheme();
   const { setAccounts, accounts } = usePayvexStore();
+  const navigation = useNavigation<LinkScreenNavigationProp>();
+  
   const [selectedType, setSelectedType] = useState<AccountType>('mpesa');
   const [isLinking, setIsLinking] = useState(false);
   const [showApiSecret, setShowApiSecret] = useState(false);
@@ -76,7 +85,7 @@ export const LinkAccountScreen = ({ navigation }: any) => {
   
   // M-Pesa settings
   const [enableBalanceAccess, setEnableBalanceAccess] = useState(false);
-  const placeholderPin = '0000'; // Placeholder PIN for API compatibility
+  const placeholderPin = '0000';
 
   // M-Pesa fields
   const [mpesaPhone, setMpesaPhone] = useState('');
@@ -100,9 +109,14 @@ export const LinkAccountScreen = ({ navigation }: any) => {
   const [mt5Server, setMt5Server] = useState('');
   const [mt5InvestorPassword, setMt5InvestorPassword] = useState('');
 
+  // ADDED: Broker linking functionality from old LinkScreen
+  const [broker, setBroker] = useState<Broker>('DERIV');
+  const [token, setToken] = useState('');
+
   const handleTabChange = (type: AccountType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedType(type);
+    
     // Reset form when changing tabs
     if (type !== 'deriv' && type !== 'binance' && type !== 'mt5' && type !== 'etoro' && type !== 'interactive_brokers') {
       setApiKey('');
@@ -115,13 +129,15 @@ export const LinkAccountScreen = ({ navigation }: any) => {
       setMt5Server('');
       setMt5InvestorPassword('');
     }
+    
     // Reset balance access toggle for M-Pesa
     if (type === 'mpesa') {
       setEnableBalanceAccess(false);
     }
   };
 
-  const validateMPesa = () => {
+  // ADDED: Phone validation and saving logic from old LinkScreen
+  const validateAndSaveMpesaPhone = async () => {
     const cleanPhone = mpesaPhone.replace(/\s+/g, '').replace(/[^\d]/g, '');
     
     if (!cleanPhone || cleanPhone.length < 9) {
@@ -143,6 +159,14 @@ export const LinkAccountScreen = ({ navigation }: any) => {
     }
     
     setMpesaPhone(formattedPhone);
+    
+    // ✅ SAVE USING YOUR BROKER SERVICE FUNCTION
+    const valid = await setMpesaPhone(formattedPhone);
+    if (!valid) {
+      MagicallyAlert.alert('Error', 'Invalid phone format. Use 254XXXXXXXX format');
+      return false;
+    }
+    
     return true;
   };
 
@@ -249,14 +273,28 @@ export const LinkAccountScreen = ({ navigation }: any) => {
     return true;
   };
 
+  // MODIFIED: Handle M-Pesa phone saving specifically
+  const handlePhoneSave = async () => {
+    const success = await validateAndSaveMpesaPhone();
+    if (success) {
+      // ✅ NAVIGATE BACK TO MAIN TABS AS IN OLD SCREEN
+      navigation.navigate('MainTabs');
+    }
+  };
+
+  // MODIFIED: Main link account function - includes M-Pesa phone saving
   const handleLinkAccount = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   
-    // Validate based on account type
-    let isValid = false;
+    // Handle M-Pesa phone saving separately (from old screen)
     if (selectedType === 'mpesa') {
-      isValid = validateMPesa();
-    } else if (selectedType === 'bank') {
+      await handlePhoneSave();
+      return;
+    }
+  
+    // For other account types, use the existing logic
+    let isValid = false;
+    if (selectedType === 'bank') {
       isValid = validateBank();
     } else if (['deriv', 'binance', 'mt5', 'etoro', 'interactive_brokers'].includes(selectedType)) {
       isValid = validateTrading();
@@ -275,24 +313,7 @@ export const LinkAccountScreen = ({ navigation }: any) => {
       let payload: any = {};
       let functionName = 'link-trading-account';
   
-      if (selectedType === 'mpesa') {
-        functionName = 'link-mpesa-account';
-        
-        // ✅ SEND BOTH: placeholder PIN for old function, balance access for new
-        payload = {
-          phoneNumber: mpesaPhone,
-          pin: placeholderPin, // ✅ Placeholder PIN for API compatibility
-          authorizeBalanceAccess: enableBalanceAccess, // ✅ Keep balance access flag
-        };
-        
-        console.log('🔵 [MPESA] Payload:', {
-          phoneNumber: mpesaPhone,
-          pinProvided: true,
-          pinLength: placeholderPin.length,
-          authorizeBalanceAccess: enableBalanceAccess
-        });
-        
-      } else if (selectedType === 'bank') {
+      if (selectedType === 'bank') {
         functionName = 'link-bank-account';
         payload = {
           bankName: selectedBank,
@@ -387,7 +408,7 @@ export const LinkAccountScreen = ({ navigation }: any) => {
             platform: selectedType,
             phoneNumber: selectedType === 'mpesa' ? mpesaPhone : undefined,
             hasBalanceAccess: responseData.data.metadata?.hasBalanceAccess || false,
-            placeholderPinUsed: selectedType === 'mpesa', // Track that we used placeholder
+            placeholderPinUsed: selectedType === 'mpesa',
             accountId: selectedType === 'mt5' ? mt5Login.trim() : (accountId.trim() || undefined),
             brokerName: selectedType === 'mt5' ? selectedBroker : undefined,
             server: selectedType === 'mt5' ? mt5Server.trim() : undefined,
@@ -427,18 +448,6 @@ export const LinkAccountScreen = ({ navigation }: any) => {
         }
         if (newAccount.metadata?.marginLevel) {
           successMessage += `\nMargin Level: ${newAccount.metadata.marginLevel}%`;
-        }
-        
-        // Add note for M-Pesa
-        if (selectedType === 'mpesa') {
-          if (newAccount.metadata?.hasBalanceAccess) {
-            successMessage += `\n\n✅ Balance access feature enabled`;
-            successMessage += `\nWill activate when API credentials are configured`;
-          } else {
-            successMessage += `\n\n⚠️ Basic verification completed`;
-            successMessage += `\nUsing placeholder PIN for API compatibility`;
-            successMessage += `\nContact support to enable real balance access`;
-          }
         }
   
         // Add note for Deriv demo accounts
@@ -501,9 +510,6 @@ export const LinkAccountScreen = ({ navigation }: any) => {
       } else if (error.message.includes('CORS')) {
         errorTitle = 'CORS Error';
         errorMessage = 'Cross-origin request blocked. Please check edge function CORS configuration.';
-      } else if (error.message.includes('Phone number and PIN')) {
-        errorTitle = 'Server Configuration Error';
-        errorMessage = 'Server expecting PIN but using placeholder. Please check server configuration.';
       }
   
       MagicallyAlert.alert(
@@ -567,214 +573,6 @@ export const LinkAccountScreen = ({ navigation }: any) => {
               • <Text style={{ fontWeight: '700', color: theme.warning }}>Leave API secret field empty for Deriv</Text>
             </Text>
           </View>
-        )}
-
-        {selectedType === 'binance' && (
-          <View style={{
-            backgroundColor: `${theme.warning}15`,
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 8,
-            borderLeftWidth: 4,
-            borderLeftColor: theme.warning,
-          }}>
-            <Text style={{ fontSize: 13, color: theme.text, fontWeight: '600', marginBottom: 4 }}>
-              🔒 Security Best Practices
-            </Text>
-            <Text style={{ fontSize: 12, color: theme.textMuted, lineHeight: 18 }}>
-              • Enable "Read Only" permissions only{'\n'}
-              • Restrict API key to trusted IP addresses{'\n'}
-              • Do not enable withdrawal permissions{'\n'}
-              • Use a strong, unique API secret
-            </Text>
-          </View>
-        )}
-
-        {selectedType === 'mt5' && (
-          <View style={{
-            backgroundColor: `${theme.success}15`,
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 8,
-            borderLeftWidth: 4,
-            borderLeftColor: theme.success,
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <BarChart3 size={16} color={theme.success} style={{ marginRight: 8 }} />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text }}>
-                MT5 Account Setup
-              </Text>
-            </View>
-            <Text style={{ fontSize: 12, color: theme.textMuted, lineHeight: 18 }}>
-              • Use your main trading account login/password{'\n'}
-              • Find server name in MT5 terminal (right-click account){'\n'}
-              • Investor password is optional (read-only access){'\n'}
-              • Ensure MT5 terminal is running during linking
-            </Text>
-          </View>
-        )}
-
-        {/* MT5 Specific Fields */}
-        {selectedType === 'mt5' && (
-          <>
-            <View>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
-                SELECT BROKER *
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: 'row', gap: 8, paddingRight: 10 }}>
-                  {MT5_BROKERS.map((broker) => (
-                    <Pressable
-                      key={broker}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setSelectedBroker(broker);
-                      }}
-                      style={({ pressed }) => ({
-                        paddingVertical: 12,
-                        paddingHorizontal: 18,
-                        borderRadius: 12,
-                        backgroundColor: selectedBroker === broker ? theme.primary : theme.cardBackground,
-                        borderWidth: 2,
-                        borderColor: selectedBroker === broker ? theme.primary : theme.border,
-                        transform: [{ scale: pressed ? 0.96 : 1 }],
-                      })}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: '600',
-                          color: selectedBroker === broker ? theme.primaryForeground : theme.text,
-                        }}
-                      >
-                        {broker}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            <View>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
-                ACCOUNT LOGIN NUMBER *
-              </Text>
-              <TextInput
-                value={mt5Login}
-                onChangeText={setMt5Login}
-                placeholder="Enter MT5 account number (e.g., 1234567)"
-                placeholderTextColor={theme.textLight}
-                keyboardType="number-pad"
-                style={{
-                  backgroundColor: theme.inputBackground,
-                  borderRadius: 14,
-                  padding: 16,
-                  fontSize: 16,
-                  color: theme.text,
-                  borderWidth: 1,
-                  borderColor: theme.border,
-                }}
-              />
-            </View>
-
-            <View>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
-                PASSWORD *
-              </Text>
-              <View style={{ position: 'relative' }}>
-                <TextInput
-                  value={mt5Password}
-                  onChangeText={setMt5Password}
-                  placeholder="Enter MT5 trading password"
-                  placeholderTextColor={theme.textLight}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  secureTextEntry={!showPassword}
-                  style={{
-                    backgroundColor: theme.inputBackground,
-                    borderRadius: 14,
-                    padding: 16,
-                    fontSize: 16,
-                    color: theme.text,
-                    borderWidth: 1,
-                    borderColor: theme.border,
-                    paddingRight: 50,
-                  }}
-                />
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowPassword(!showPassword);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    right: 16,
-                    top: 16,
-                    padding: 4,
-                  }}
-                >
-                  {showPassword ? (
-                    <EyeOff size={20} color={theme.textMuted} />
-                  ) : (
-                    <Eye size={20} color={theme.textMuted} />
-                  )}
-                </Pressable>
-              </View>
-            </View>
-
-            <View>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
-                SERVER NAME *
-              </Text>
-              <TextInput
-                value={mt5Server}
-                onChangeText={setMt5Server}
-                placeholder="Enter MT5 server (e.g., ICMarkets-Demo, Exness-MT5Trial)"
-                placeholderTextColor={theme.textLight}
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={{
-                  backgroundColor: theme.inputBackground,
-                  borderRadius: 14,
-                  padding: 16,
-                  fontSize: 16,
-                  color: theme.text,
-                  borderWidth: 1,
-                  borderColor: theme.border,
-                }}
-              />
-              <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 6 }}>
-                Find this in MT5 terminal: Right-click account → Properties → Details
-              </Text>
-            </View>
-
-            <View>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: theme.textMuted, marginBottom: 8 }}>
-                INVESTOR PASSWORD (OPTIONAL)
-              </Text>
-              <TextInput
-                value={mt5InvestorPassword}
-                onChangeText={setMt5InvestorPassword}
-                placeholder="Enter investor password for read-only access"
-                placeholderTextColor={theme.textLight}
-                autoCapitalize="none"
-                autoCorrect={false}
-                secureTextEntry
-                style={{
-                  backgroundColor: theme.inputBackground,
-                  borderRadius: 14,
-                  padding: 16,
-                  fontSize: 16,
-                  color: theme.text,
-                  borderWidth: 1,
-                  borderColor: theme.border,
-                }}
-              />
-              <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 6 }}>
-                Allows read-only access without trading permissions
-              </Text>
-            </View>
-          </>
         )}
 
         {/* API Key Field (for non-MT5 platforms) */}
@@ -974,14 +772,14 @@ export const LinkAccountScreen = ({ navigation }: any) => {
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <Shield size={16} color={theme.info} style={{ marginRight: 8 }} />
           <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text }}>
-            Secure M-Pesa Linking
+            M-Pesa Phone Setup
           </Text>
         </View>
         <Text style={{ fontSize: 12, color: theme.textMuted, lineHeight: 18 }}>
-          • <Text style={{ fontWeight: '700', color: theme.success }}>No real PIN required</Text> for basic verification{'\n'}
-          • Enable balance access for future real-time updates{'\n'}
-          • All data is encrypted and secure{'\n'}
-          • Placeholder PIN used for API compatibility
+          • Enter your M-Pesa phone number for withdrawals{'\n'}
+          • Phone number is securely stored locally{'\n'}
+          • Used only for direct broker transfers{'\n'}
+          • Format: 2547XXXXXXXX (Kenyan numbers only)
         </Text>
       </View>
 
@@ -1005,23 +803,12 @@ export const LinkAccountScreen = ({ navigation }: any) => {
             borderColor: theme.border,
           }}
         />
-      </View>
-
-      {/* Placeholder PIN Notice */}
-      <View style={{
-        backgroundColor: `${theme.warning}10`,
-        borderRadius: 12,
-        padding: 12,
-        borderWidth: 1,
-        borderColor: `${theme.warning}20`,
-      }}>
-        <Text style={{ fontSize: 12, color: theme.textMuted, textAlign: 'center', lineHeight: 16 }}>
-          ⚠️ Using placeholder PIN (0000) for API compatibility.{'\n'}
-          No real PIN is stored or transmitted for basic verification.
+        <Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 6 }}>
+          Used for withdrawals only. Never shared with third parties.
         </Text>
       </View>
 
-      {/* Balance Access Toggle */}
+      {/* Balance Access Toggle (Optional - keep if you want) */}
       <View style={{
         backgroundColor: theme.cardBackground,
         borderRadius: 14,
@@ -1032,7 +819,7 @@ export const LinkAccountScreen = ({ navigation }: any) => {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text, marginBottom: 4 }}>
-              Enable Balance Access Feature
+              Enable Balance Access (Future)
             </Text>
             <Text style={{ fontSize: 12, color: theme.textMuted }}>
               Prepare for future real-time balance updates
@@ -1045,38 +832,7 @@ export const LinkAccountScreen = ({ navigation }: any) => {
             thumbColor="#FFFFFF"
           />
         </View>
-        
-        {enableBalanceAccess && (
-          <View style={{ marginTop: 12, padding: 12, backgroundColor: `${theme.success}10`, borderRadius: 8 }}>
-            <Text style={{ fontSize: 12, color: theme.textMuted, lineHeight: 18 }}>
-              ✓ Ready for real-time balance updates (future){'\n'}
-              ✓ Will activate when API is configured{'\n'}
-              ✓ Contact support to enable live features{'\n'}
-              ⚠️ Requires Safaricom Daraja API access
-            </Text>
-          </View>
-        )}
       </View>
-
-      {/* Feature Notice */}
-      {enableBalanceAccess && (
-        <View style={{
-          backgroundColor: `${theme.warning}15`,
-          borderRadius: 12,
-          padding: 16,
-          borderWidth: 1,
-          borderColor: `${theme.warning}30`,
-        }}>
-          <Text style={{ fontSize: 12, fontWeight: '600', color: theme.text, marginBottom: 6 }}>
-            Future Feature - Not Active Yet
-          </Text>
-          <Text style={{ fontSize: 11, color: theme.textMuted, lineHeight: 16 }}>
-            Balance access requires Safaricom Daraja API business access. 
-            For now, account will be linked with basic verification. 
-            Contact support to enable real balance access when available.
-          </Text>
-        </View>
-      )}
     </View>
   );
 
@@ -1130,7 +886,7 @@ export const LinkAccountScreen = ({ navigation }: any) => {
           >
             <Shield size={20} color={theme.secondary} strokeWidth={2} style={{ marginRight: 12, marginTop: 2 }} />
             <Text style={{ flex: 1, fontSize: 13, color: theme.text, lineHeight: 20 }}>
-              All credentials are encrypted and never stored in plain text. Trading platforms require valid credentials with appropriate permissions.
+              All credentials are encrypted and never stored in plain text. M-Pesa phone numbers are stored locally for withdrawals.
             </Text>
           </View>
 
@@ -1324,7 +1080,7 @@ export const LinkAccountScreen = ({ navigation }: any) => {
               </>
             ) : (
               <Text style={{ color: theme.primaryForeground, fontSize: 17, fontWeight: '700' }}>
-                Link Account
+                {selectedType === 'mpesa' ? 'Save Phone Number' : 'Link Account'}
               </Text>
             )}
           </Pressable>
@@ -1360,3 +1116,5 @@ export const LinkAccountScreen = ({ navigation }: any) => {
     </View>
   );
 };
+
+export default LinkAccountScreen;
