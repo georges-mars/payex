@@ -1,4 +1,4 @@
-// src/services/broker.ts - FIXED depositDerivMpesa function
+// src/services/broker.ts - COMPLETELY FIXED
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Broker } from '../types';
@@ -324,12 +324,12 @@ export async function initiateDeposit(broker: Broker, amount?: number): Promise<
 }
 
 // ============================================
-// FIXED: Deriv M-Pesa Deposit Function
+// FIXED: Deriv M-Pesa Deposit via Cashier API
 // ============================================
 export async function depositDerivMpesa(
   token: string,
   amountKES: number,
-  phone: string  // Still passed in but used for validation only
+  phone: string
 ): Promise<{ success: boolean; message: string }> {
   return new Promise((resolve) => {
     const ws = new WebSocket(DERIV_WS_URL);
@@ -355,50 +355,65 @@ export async function depositDerivMpesa(
       // Step 1: Authorization response
       if (data.authorize && !data.error && !authorized) {
         authorized = true;
-        console.log('✅ Authorized! Initiating M-Pesa deposit...');
+        console.log('✅ Authorized! Requesting cashier URL...');
 
-        // Convert KES to USD (approximate rate: 1 USD = 130 KES)
-        const amountUSD = (amountKES / 130).toFixed(2);
-
-        // Step 2: Request deposit via M-Pesa
-        // ✅ FIXED: Removed phone_number field as Deriv doesn't accept it
+        // Step 2: Request cashier URL for M-Pesa deposit
         ws.send(
           JSON.stringify({
             cashier: 'deposit',
-            provider: 'mpesa',
-            type: 'api',
-            verification_code: token,
-            amount: amountUSD,
-            // phone_number field REMOVED - Deriv uses account's stored number
+            provider: 'doughflow',
+            verification_code: token
           })
         );
       }
 
       // Step 3: Handle cashier response
-      if (data.cashier || data.error) {
+      if (data.cashier) {
         cleanup();
-
-        if (data.error) {
-          console.error('❌ Deposit error:', data.error);
+        
+        if (data.cashier.deposit) {
+          console.log('✅ Got cashier URL:', data.cashier.deposit);
           
-          // Better error messages
-          let errorMessage = data.error.message || 'Deposit failed';
-          
-          if (errorMessage.includes('phone')) {
-            errorMessage = 'Please update your M-Pesa phone number in your Deriv account settings first';
-          }
-          
+          // Open the cashier URL in browser
+          WebBrowser.openBrowserAsync(data.cashier.deposit)
+            .then(() => {
+              resolve({ 
+                success: true, 
+                message: 'Redirecting to Deriv cashier. Complete your M-Pesa payment there.' 
+              });
+            })
+            .catch((error) => {
+              resolve({ 
+                success: false, 
+                message: 'Failed to open browser: ' + error.message 
+              });
+            });
+        } else {
           resolve({ 
             success: false, 
-            message: errorMessage
-          });
-        } else if (data.cashier) {
-          console.log('✅ Deposit initiated:', data.cashier);
-          resolve({ 
-            success: true, 
-            message: 'STK push sent! Check your phone to complete payment.' 
+            message: 'No deposit URL received from Deriv' 
           });
         }
+      }
+
+      // Handle errors
+      if (data.error) {
+        console.error('❌ API error:', data.error);
+        cleanup();
+        
+        let errorMessage = data.error.message || 'Deposit failed';
+        
+        // Provide helpful error messages
+        if (errorMessage.includes('InvalidToken')) {
+          errorMessage = 'Invalid Deriv token. Please re-link your account.';
+        } else if (errorMessage.includes('verification')) {
+          errorMessage = 'Please verify your email in Deriv before depositing.';
+        }
+        
+        resolve({ 
+          success: false, 
+          message: errorMessage
+        });
       }
     };
 
